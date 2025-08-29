@@ -274,6 +274,7 @@ class TestSimilaritySearch:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
                 call_count = 0
+
                 def selective_error(*args, **kwargs):
                     nonlocal call_count
                     call_count += 1
@@ -349,6 +350,7 @@ class TestEmbeddingRetrieval:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
                 call_count = 0
+
                 def selective_error(*args, **kwargs):
                     nonlocal call_count
                     call_count += 1
@@ -401,6 +403,7 @@ class TestEmbeddingDeletion:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
                 call_count = 0
+
                 def selective_error(*args, **kwargs):
                     nonlocal call_count
                     call_count += 1
@@ -456,6 +459,7 @@ class TestVectorStoreStats:
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
                 call_count = 0
+
                 def selective_error(*args, **kwargs):
                     nonlocal call_count
                     call_count += 1
