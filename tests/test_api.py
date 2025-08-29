@@ -22,7 +22,7 @@ def initialize_test_database():
     """Initialize the database for testing once per test session."""
     try:
         initialize_database()
-    except Exception as e:
+    except Exception:
         # If initialization fails, we'll use the in-memory database instead
         pass
 
