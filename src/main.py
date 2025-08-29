@@ -9,6 +9,7 @@ from .core.database import get_db, initialize_database
 from .core import models, schemas, crud
 from .core.object_store import get_object_store_client
 from .core.llm_client import get_llm_client
+from .core.config_store import get_rag_config, update_rag_config
 
 
 def get_redis_client() -> ArqRedis:
@@ -43,6 +44,53 @@ def log_health_check_request():
     import logging
     logging.info("Health check triggered a background task!")
     print("Health check triggered a background task!")
+
+
+@app.get("/config", response_model=schemas.RAGConfig, tags=["Configuration"])
+async def get_config():
+    """
+    Get the current RAG configuration.
+
+    Returns the current configuration parameters used by the RAG pipeline.
+    These parameters control retrieval, generation, and quality thresholds.
+
+    Returns:
+        RAGConfig: Current RAG configuration
+    """
+    return get_rag_config()
+
+
+@app.put("/config", response_model=schemas.RAGConfig, tags=["Configuration"])
+async def update_config(config: schemas.RAGConfig):
+    """
+    Update the RAG configuration.
+
+    Allows dynamic tuning of RAG pipeline parameters without requiring code deployment.
+    Changes take effect immediately for all subsequent queries.
+
+    - **config**: New RAG configuration parameters
+    - **retrieval_top_k**: Number of chunks to retrieve in hybrid search
+    - **min_chunks**: Minimum chunks required for retrieval gate
+    - **confidence_threshold**: Minimum confidence score for generation gate
+    - **relevance_threshold**: Minimum relevance score for retrieved chunks
+    - **max_context_length**: Maximum context length for LLM input
+    - **temperature**: LLM temperature for answer generation
+    - **enable_fallback**: Whether to provide fallback messages when gates fail
+
+    Returns:
+        RAGConfig: Updated configuration
+
+    Raises:
+        HTTPException: If configuration parameters are invalid
+    """
+    try:
+        updated_config = update_rag_config(config)
+        logging.info(f"Configuration updated via API: {config.dict()}")
+        return updated_config
+    except ValueError as e:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=400, detail=str(e))
+
 
 @app.post("/books/", response_model=schemas.Book, tags=["Books"])
 async def create_book(book: schemas.BookCreate, db: Session = Depends(get_db)):
@@ -189,23 +237,22 @@ async def query_books(
     try:
         logging.info(f"Processing query: '{request.query}' (book_id: {request.book_id}, top_k: {request.top_k})")
 
-        # Get configurable thresholds from environment
-        min_chunks = int(os.getenv("RAG_MIN_CHUNKS", "2"))  # Minimum chunks required
-        confidence_threshold = float(os.getenv("RAG_CONFIDENCE_THRESHOLD", "0.7"))  # Minimum confidence score
+        # Get current RAG configuration
+        config = get_rag_config()
 
         # Step 1: Retrieval Phase
         logging.info("Step 1: Performing hybrid retrieval")
         retrieved_chunks = crud.hybrid_retrieve(
             db=db,
             query=request.query,
-            top_k=request.top_k,
+            top_k=config.retrieval_top_k if request.top_k is None else request.top_k,
             book_id=request.book_id
         )
 
         # Step 2: Retrieval Gate
-        if len(retrieved_chunks) < min_chunks:
+        if len(retrieved_chunks) < config.min_chunks:
             fallback_msg = "I couldn't find enough relevant information in the available documents to answer your question confidently. Please try rephrasing your query or check if the information you're looking for is in the uploaded books."
-            logging.warning(f"Retrieval gate failed: only {len(retrieved_chunks)} chunks found (minimum: {min_chunks})")
+            logging.warning(f"Retrieval gate failed: only {len(retrieved_chunks)} chunks found (minimum: {config.min_chunks})")
             return schemas.QueryResponse(fallback_message=fallback_msg)
 
         logging.info(f"Retrieval gate passed: {len(retrieved_chunks)} chunks retrieved")
@@ -222,9 +269,9 @@ async def query_books(
         )
 
         # Step 5: Generation Gate
-        if answer.confidence_score < confidence_threshold:
+        if answer.confidence_score < config.confidence_threshold:
             fallback_msg = "I'm not confident enough in my answer to provide it accurately. The available information doesn't sufficiently support a reliable response to your question."
-            logging.warning(f"Generation gate failed: confidence {answer.confidence_score:.2f} below threshold {confidence_threshold}")
+            logging.warning(f"Generation gate failed: confidence {answer.confidence_score:.2f} below threshold {config.confidence_threshold}")
             return schemas.QueryResponse(fallback_message=fallback_msg)
 
         # Step 6: Success - return structured answer

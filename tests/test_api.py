@@ -318,18 +318,25 @@ class TestQueryEndpoints:
         with patch('src.main.get_llm_client') as mock_llm, \
              patch('src.main.crud.hybrid_retrieve') as mock_retrieve:
 
-            # Mock retrieval results
+            # Mock retrieval results (need at least 2 chunks to pass retrieval gate)
             mock_chunks = [
-                Mock(id=1, chunk_text="Test chunk", page_number=1)
+                Mock(id=1, chunk_text="Test chunk 1", page_number=1),
+                Mock(id=2, chunk_text="Test chunk 2", page_number=2)
             ]
             mock_retrieve.return_value = mock_chunks
 
             # Mock LLM response
             mock_llm_client = Mock()
-            mock_answer = Mock()
+            mock_answer = Mock(spec=schemas.Answer)
             mock_answer.confidence_score = 0.9
             mock_answer.answer_summary = "This is a test answer"
             mock_answer.claims = []
+            # Make it behave like a Pydantic model
+            mock_answer.dict = Mock(return_value={
+                "answer_summary": "This is a test answer",
+                "claims": [],
+                "confidence_score": 0.9
+            })
             mock_llm_client.generate_grounded_answer.return_value = mock_answer
             mock_llm.return_value = mock_llm_client
 
@@ -371,7 +378,10 @@ class TestQueryEndpoints:
         with patch('src.main.crud.hybrid_retrieve') as mock_retrieve, \
              patch('src.main.get_llm_client') as mock_llm:
 
-            mock_chunks = [Mock(id=1, chunk_text="Test chunk", page_number=1)]
+            mock_chunks = [
+                Mock(id=1, chunk_text="Test chunk 1", page_number=1),
+                Mock(id=2, chunk_text="Test chunk 2", page_number=2)
+            ]
             mock_retrieve.return_value = mock_chunks
 
             mock_llm_client = Mock()
@@ -399,12 +409,23 @@ class TestQueryEndpoints:
         with patch('src.main.crud.hybrid_retrieve') as mock_retrieve, \
              patch('src.main.get_llm_client') as mock_llm:
 
-            mock_chunks = [Mock(id=1, chunk_text="Test chunk", page_number=1)]
+            mock_chunks = [
+                Mock(id=1, chunk_text="Test chunk 1", page_number=1),
+                Mock(id=2, chunk_text="Test chunk 2", page_number=2)
+            ]
             mock_retrieve.return_value = mock_chunks
 
             mock_llm_client = Mock()
-            mock_answer = Mock()
+            mock_answer = Mock(spec=schemas.Answer)
             mock_answer.confidence_score = 0.9
+            mock_answer.answer_summary = "Test answer"
+            mock_answer.claims = []
+            # Make it behave like a Pydantic model
+            mock_answer.dict = Mock(return_value={
+                "answer_summary": "Test answer",
+                "claims": [],
+                "confidence_score": 0.9
+            })
             mock_llm_client.generate_grounded_answer.return_value = mock_answer
             mock_llm.return_value = mock_llm_client
 

@@ -126,3 +126,20 @@ class IndexEntry(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class RAGConfig(BaseModel):
+    """
+    Schema for RAG pipeline configuration parameters.
+    These parameters control the behavior and quality thresholds of the RAG system.
+    """
+    retrieval_top_k: int = 10  # Number of chunks to retrieve in hybrid search
+    min_chunks: int = 2  # Minimum number of chunks required for retrieval gate
+    confidence_threshold: float = 0.7  # Minimum confidence score for generation gate
+    relevance_threshold: float = 0.5  # Minimum relevance score for retrieved chunks
+    max_context_length: int = 4000  # Maximum context length for LLM input
+    temperature: float = 0.1  # LLM temperature for answer generation
+    enable_fallback: bool = True  # Whether to provide fallback messages when gates fail
+
+    class Config:
+        orm_mode = True
