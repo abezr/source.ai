@@ -12,6 +12,7 @@ from fastembed import TextEmbedding
 
 from ..core.schemas import TOCNode, IndexEntry
 from ..core.llm_client import get_llm_client
+from ..core.sanitizer import sanitize_text_with_audit
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -39,9 +40,14 @@ def parse_toc_from_pdf(file_path: str) -> List[TOCNode]:
             logger.warning(f"No ToC text found in {file_path}")
             return []
 
-        # Parse the text using LLM
+        # Sanitize text before LLM processing for security
+        sanitized_result = sanitize_text_with_audit(toc_text, context="toc")
+        if sanitized_result.is_modified:
+            logger.info(f"ToC text sanitized for {file_path}: {sanitized_result.changes_made}")
+
+        # Parse the sanitized text using LLM
         llm_client = get_llm_client()
-        structured_data = llm_client.get_structured_toc(toc_text)
+        structured_data = llm_client.get_structured_toc(sanitized_result.sanitized_text)
 
         # Validate and convert to Pydantic models
         toc_nodes = _validate_and_convert_toc_data(structured_data)
@@ -531,9 +537,14 @@ def parse_index_from_text(text: str) -> List[IndexEntry]:
     try:
         logger.info("Parsing alphabetical index from text content")
 
-        # Use LLM to parse the index
+        # Sanitize text before LLM processing for security
+        sanitized_result = sanitize_text_with_audit(text, context="index")
+        if sanitized_result.is_modified:
+            logger.info(f"Index text sanitized: {sanitized_result.changes_made}")
+
+        # Use LLM to parse the sanitized index
         llm_client = get_llm_client()
-        structured_data = llm_client.get_structured_index(text)
+        structured_data = llm_client.get_structured_index(sanitized_result.sanitized_text)
 
         # Validate and convert to Pydantic models
         index_entries = _validate_and_convert_index_data(structured_data)
