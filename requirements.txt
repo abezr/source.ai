@@ -10,6 +10,7 @@ pymupdf
 For DjVu, ensure djvulibre is installed on the system
 Database
 sqlite is built-in
+sqlalchemy
 Vector Search
 sqlite-vec
 fastembed
