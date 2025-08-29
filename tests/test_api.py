@@ -13,7 +13,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.main import app
-from src.core.database import Base, initialize_database
+from src.core.database import Base
 from src.core import schemas
 
 
