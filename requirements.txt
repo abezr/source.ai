@@ -5,6 +5,9 @@ pydantic
 python-dotenv
 ruff
 pytest
+pytest-mock
+pytest-cov
+pytest-asyncio
 httpx
 pymupdf
 sqlalchemy
