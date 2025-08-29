@@ -17,38 +17,45 @@ from src.core.database import Base, initialize_database
 from src.core import schemas
 
 
-@pytest.fixture(scope="session", autouse=True)
-def initialize_test_database():
-    """Initialize the database for testing once per test session."""
-    try:
-        initialize_database()
-    except Exception:
-        # If initialization fails, we'll use the in-memory database instead
-        pass
-
-
-@pytest.fixture(scope="function")
-def test_db():
-    """Create an in-memory SQLite database for testing."""
-    engine = create_engine(
+@pytest.fixture(scope="function", autouse=True)
+def setup_test_database():
+    """Set up a clean in-memory database for each test."""
+    # Create in-memory database for each test
+    test_engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
 
     # Create all tables
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=test_engine)
 
-    # Create a session
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-    db = TestingSessionLocal()
+    # Override the global engine for this test
+    import src.core.database as db_module
+    original_engine = db_module.engine
+    original_session_local = db_module.SessionLocal
+
+    db_module.engine = test_engine
+    db_module.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+
+    yield
+
+    # Restore original engine and clean up
+    db_module.engine = original_engine
+    db_module.SessionLocal = original_session_local
+    test_engine.dispose()
+
+
+@pytest.fixture(scope="function")
+def test_db():
+    """Create an in-memory SQLite database for testing."""
+    from src.core.database import SessionLocal
+    db = SessionLocal()
 
     try:
         yield db
     finally:
         db.close()
-        # Clean up the engine
-        engine.dispose()
 
 
 @pytest_asyncio.fixture
