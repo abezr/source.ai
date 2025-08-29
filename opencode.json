@@ -1,0 +1,86 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "google/gemini-2.5-pro",
+  "instructions": [
+    "AGENTS.md"
+  ],
+  "formatter": {
+    "ruff": {
+      "command": [
+        "ruff",
+        "format",
+        "$FILE"
+      ],
+      "extensions": [
+        ".py",
+        ".pyi"
+      ]
+    }
+  },
+  "lsp": {
+    "pyright": {
+      "disabled": false
+    }
+  },
+  "agent": {
+    "build": {
+      "mode": "primary",
+      "description": "Default agent for general development and implementation tasks."
+    },
+    "plan": {
+      "mode": "primary",
+      "description": "A read-only agent for planning, analysis, and architectural suggestions.",
+      "permission": {
+        "edit": "deny",
+        "bash": "ask"
+      }
+    },
+    "architect": {
+      "mode": "subagent",
+      "description": "Specialized for updating the C4 model in docs/architecture/system.dsl.",
+      "prompt": "You are an expert systems architect. Your primary tool is the Structurizr DSL. Your goal is to maintain the system.dsl file as the single source of truth for the project's architecture."
+    },
+    "parser": {
+      "mode": "subagent",
+      "description": "Specialized for writing file parsing and content extraction logic."
+    },
+    "indexer": {
+      "mode": "subagent",
+      "description": "Specialized for writing data to databases and vector stores."
+    },
+    "api": {
+      "mode": "subagent",
+      "description": "Specialized for building FastAPI endpoints and RAG pipelines."
+    },
+    "qa": {
+      "mode": "subagent",
+      "description": "Specialized for writing tests (pytest) and the evaluation harness."
+    },
+    "devops": {
+      "mode": "subagent",
+      "description": "Specialized for managing Docker, CI/CD, and dependencies."
+    },
+    "pr-reviewer": {
+      "description": "Reviews code on pull requests for quality, security, and adherence to standards.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "deny"
+      },
+      "prompt": "You are a senior software engineer reviewing a pull request. Analyze the code changes for correctness, style, performance, and security. Provide constructive feedback. Do not edit the code directly."
+    }
+  },
+  "command": {
+    "test": {
+      "description": "Run the full pytest suite.",
+      "template": "Run all tests using `pytest -v`. Analyze any failures and suggest fixes."
+    },
+    "lint": {
+      "description": "Check code formatting and quality with Ruff.",
+      "template": "Run `ruff check .` and `ruff format .`. Apply any necessary fixes."
+    },
+    "eval": {
+      "description": "Run the RAG evaluation harness.",
+      "template": "Execute the evaluation script at `scripts/run_evaluation.py` and report the key metrics (e.g., Faithfulness, Answer Relevancy)."
+    }
+  }
+}

@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: hbi_app
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - PYTHONUNBUFFERED=1
+      # Add other environment variables like API keys here
+    depends_on:
+      - text_index
+      - object_store
+      - loki
+    command: uvicorn src.main:app --host 0.0.0.0 --port 8000 --reload
+
+  text_index:
+    image: nouchka/sqlite3:latest
+    container_name: hbi_sqlite
+    stdin_open: true
+    tty: true
+    volumes:
+      - ./data/database:/db
+    
+  object_store:
+    image: minio/minio:latest
+    container_name: hbi_minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - ./data/minio:/data
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    command: server /data --console-address ":9001"
+
+  # --- Observability Stack ---
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: hbi_prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+    command: '--config.file=/etc/prometheus/prometheus.yml'
+
+  loki:
+    image: grafana/loki:latest
+    container_name: hbi_loki
+    ports:
+      - "3100:3100"
+    command: -config.file=/etc/loki/local-config.yaml
+
+  grafana:
+    image: grafana/grafana-oss:latest
+    container_name: hbi_grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./config/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+    depends_on:
+      - prometheus
+      - loki
+
+  langfuse:
+    image: langfuse/langfuse:latest
+    container_name: hbi_langfuse
+    ports:
+      - "3001:3000" # Expose Langfuse on a different port
+    environment:
+      - DATABASE_URL=postgresql://langfuse:langfuse@langfuse-db:5432/langfuse
+      - NEXTAUTH_SECRET=mysecret
+      - SALT=mysecret
+      - NEXTAUTH_URL=http://localhost:3001
+    depends_on:
+      - langfuse-db
+
+  langfuse-db:
+    image: postgres:15
+    container_name: hbi_langfuse_db
+    restart: always
+    environment:
+      - POSTGRES_USER=langfuse
+      - POSTGRES_PASSWORD=langfuse
+      - POSTGRES_DB=langfuse
+    volumes:
+      - ./data/langfuse-db:/var/lib/postgresql/data
+
+volumes:
+  langfuse-db:

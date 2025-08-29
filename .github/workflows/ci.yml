@@ -1,0 +1,38 @@
+name: CI Quality Gate
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Lint with Ruff
+      run: |
+        ruff check .
+        ruff format --check .
+
+    - name: Run Pytest
+      run: |
+        pytest
+
+    - name: Run Evaluation Harness
+      run: |
+        # This step assumes the evaluation script is runnable and reports success/failure
+        # The AI agent's job is to make this script robust.
+        python scripts/run_evaluation.py
