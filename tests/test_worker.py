@@ -299,9 +299,9 @@ class TestProcessBookFileArq:
                     mock_session.return_value = mock_db
 
                     # Mock the subprocess.run call to avoid djvutxt dependency
-                    with patch("subprocess.run") as mock_subprocess:
+                    with patch("src.agents.parser.subprocess.run") as mock_subprocess:
                         mock_subprocess.return_value = Mock(
-                            stdout="Test DjVu content", stderr=""
+                            stdout="Test DjVu content", stderr="", returncode=0
                         )
                         result = await process_book_file_arq(ctx, 456, f.name)
 

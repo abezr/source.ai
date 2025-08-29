@@ -21,7 +21,7 @@ class TestVectorStoreInitialization:
         with patch(
             "src.core.vector_store.SQLALCHEMY_DATABASE_URL", "sqlite:///./test.db"
         ):
-            with patch("sqlite3.connect") as mock_connect:
+            with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                 mock_conn = MagicMock()
                 mock_connect.return_value.__enter__.return_value = mock_conn
                 store = VectorStore()
@@ -29,7 +29,7 @@ class TestVectorStoreInitialization:
 
     def test_init_with_custom_path(self):
         """Test initialization with custom database path."""
-        with patch("sqlite3.connect") as mock_connect:
+        with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
             mock_conn = MagicMock()
             mock_connect.return_value.__enter__.return_value = mock_conn
             store = VectorStore(db_path="/custom/path.db")
@@ -40,7 +40,7 @@ class TestVectorStoreInitialization:
         with patch(
             "src.core.vector_store.SQLALCHEMY_DATABASE_URL", "sqlite:///./data/test.db"
         ):
-            with patch("sqlite3.connect") as mock_connect:
+            with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                 mock_conn = MagicMock()
                 mock_connect.return_value.__enter__.return_value = mock_conn
                 store = VectorStore()
@@ -50,7 +50,7 @@ class TestVectorStoreInitialization:
         """Test that initialization creates vector tables."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_connect.return_value.__enter__.return_value = mock_conn
 
@@ -88,7 +88,7 @@ class TestVectorStoreInitialization:
         """Test handling of sqlite-vec extension loading errors."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_conn.load_extension.side_effect = sqlite3.Error(
                         "Extension not found"
@@ -112,7 +112,7 @@ class TestEmbeddingStorage:
         """Test successful embedding storage."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_connect.return_value.__enter__.return_value = mock_conn
 
@@ -135,7 +135,7 @@ class TestEmbeddingStorage:
         """Test handling of database errors during embedding storage."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
 
                     # Make execute fail only on actual INSERT operations, not on table creation
@@ -166,7 +166,7 @@ class TestEmbeddingStorage:
         """Test that embeddings are properly JSON serialized."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_connect.return_value.__enter__.return_value = mock_conn
 
@@ -181,9 +181,9 @@ class TestEmbeddingStorage:
                     # Look for the INSERT statement that stores the JSON embedding
                     json_found = False
                     for call in execute_calls:
-                        if len(call[0]) >= 2:
-                            sql = call[0][0]
-                            params = call[0][1:]
+                        if len(call.args) >= 2:
+                            sql = call.args[0]
+                            params = call.args[1]
                             if "INSERT" in sql and "chunk_embeddings" in sql:
                                 # Check if any parameter is a JSON string containing our embedding
                                 for param in params:
@@ -223,7 +223,7 @@ class TestSimilaritySearch:
         """Test successful similarity search."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_cursor = MagicMock()
                     mock_cursor.fetchall.return_value = [(1, 0.1), (2, 0.2), (3, 0.3)]
@@ -249,7 +249,7 @@ class TestSimilaritySearch:
         """Test similarity search with no results."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_cursor = MagicMock()
                     mock_cursor.fetchall.return_value = []
@@ -273,7 +273,7 @@ class TestSimilaritySearch:
         """Test handling of database errors during similarity search."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_conn.execute.side_effect = sqlite3.Error("Search error")
                     mock_connect.return_value.__enter__.return_value = mock_conn
@@ -296,7 +296,7 @@ class TestEmbeddingRetrieval:
         """Test successful embedding retrieval."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_cursor = MagicMock()
                     embedding = [0.1, 0.2, 0.3, 0.4]
@@ -317,7 +317,7 @@ class TestEmbeddingRetrieval:
         """Test retrieval of non-existent embedding."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_cursor = MagicMock()
                     mock_cursor.fetchone.return_value = None
@@ -337,7 +337,7 @@ class TestEmbeddingRetrieval:
         """Test handling of database errors during embedding retrieval."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_conn.execute.side_effect = sqlite3.Error("Retrieval error")
                     mock_connect.return_value.__enter__.return_value = mock_conn
@@ -359,7 +359,7 @@ class TestEmbeddingDeletion:
         """Test successful embedding deletion."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_connect.return_value.__enter__.return_value = mock_conn
 
@@ -378,7 +378,7 @@ class TestEmbeddingDeletion:
         """Test handling of database errors during embedding deletion."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_conn.execute.side_effect = sqlite3.Error("Deletion error")
                     mock_connect.return_value.__enter__.return_value = mock_conn
@@ -400,7 +400,7 @@ class TestVectorStoreStats:
         """Test successful statistics retrieval."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_cursor = MagicMock()
                     mock_cursor.fetchone.return_value = (42,)
@@ -422,7 +422,7 @@ class TestVectorStoreStats:
         """Test handling of database errors during statistics retrieval."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
-                with patch("sqlite3.connect") as mock_connect:
+                with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
                     mock_conn.execute.side_effect = sqlite3.Error("Stats error")
                     mock_connect.return_value.__enter__.return_value = mock_conn

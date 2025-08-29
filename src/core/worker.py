@@ -67,9 +67,9 @@ async def process_book_file_arq(
         # For now, assume the file is locally accessible
         # local_file_path = download_from_minio(object_key)
 
-        # For development/testing, we'll use a placeholder
+        # For development/testing, use the object_key as the local file path
         # In production, this would download the file from MinIO
-        local_file_path = f"/tmp/book_{book_id}.pdf"  # Placeholder
+        local_file_path = object_key
 
         # Detect file type
         file_extension = _detect_file_type(local_file_path)
