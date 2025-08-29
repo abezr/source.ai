@@ -96,13 +96,17 @@ class TestValidateConfig:
     def test_validate_config_invalid_confidence_threshold(self):
         """Test validating invalid confidence_threshold."""
         invalid_config = RAGConfig(confidence_threshold=1.5)
-        with pytest.raises(ValueError, match="confidence_threshold must be between 0.0 and 1.0"):
+        with pytest.raises(
+            ValueError, match="confidence_threshold must be between 0.0 and 1.0"
+        ):
             _validate_config(invalid_config)
 
     def test_validate_config_invalid_relevance_threshold(self):
         """Test validating invalid relevance_threshold."""
         invalid_config = RAGConfig(relevance_threshold=-0.1)
-        with pytest.raises(ValueError, match="relevance_threshold must be between 0.0 and 1.0"):
+        with pytest.raises(
+            ValueError, match="relevance_threshold must be between 0.0 and 1.0"
+        ):
             _validate_config(invalid_config)
 
     def test_validate_config_invalid_max_context_length(self):
@@ -120,5 +124,7 @@ class TestValidateConfig:
     def test_validate_config_invalid_min_chunks_greater_than_top_k(self):
         """Test validating when min_chunks > retrieval_top_k."""
         invalid_config = RAGConfig(retrieval_top_k=5, min_chunks=10)
-        with pytest.raises(ValueError, match="min_chunks cannot be greater than retrieval_top_k"):
+        with pytest.raises(
+            ValueError, match="min_chunks cannot be greater than retrieval_top_k"
+        ):
             _validate_config(invalid_config)
