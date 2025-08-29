@@ -32,11 +32,14 @@ def setup_test_database():
 
     # Override the global engine for this test
     import src.core.database as db_module
+
     original_engine = db_module.engine
     original_session_local = db_module.SessionLocal
 
     db_module.engine = test_engine
-    db_module.SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+    db_module.SessionLocal = sessionmaker(
+        autocommit=False, autoflush=False, bind=test_engine
+    )
 
     yield
 
@@ -50,6 +53,7 @@ def setup_test_database():
 def test_db():
     """Create an in-memory SQLite database for testing."""
     from src.core.database import SessionLocal
+
     db = SessionLocal()
 
     try:

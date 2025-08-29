@@ -526,9 +526,7 @@ class TestBookProcessing:
             )
 
             assert result is True
-            mock_chunk_and_embed.assert_called_once_with(
-                mock_file_path, sample_book.id
-            )
+            mock_chunk_and_embed.assert_called_once_with(mock_file_path, sample_book.id)
 
     @patch("src.agents.parser.chunk_and_embed_book")
     def test_process_book_chunks_and_embeddings_no_chunks(

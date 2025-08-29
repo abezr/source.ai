@@ -109,7 +109,9 @@ class QueryRequest(BaseModel):
 
     query: str = Field(..., min_length=1, description="Search query text")
     book_id: Optional[int] = None  # Optional: filter to specific book
-    top_k: Optional[int] = Field(10, ge=1, le=100, description="Number of chunks to retrieve (1-100)")
+    top_k: Optional[int] = Field(
+        10, ge=1, le=100, description="Number of chunks to retrieve (1-100)"
+    )
 
     class Config:
         orm_mode = True
