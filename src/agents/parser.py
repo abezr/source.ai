@@ -3,7 +3,6 @@ Parser agent for HBI system.
 Handles PDF parsing, Table of Contents extraction, and content chunking with embeddings.
 """
 
-import os
 import logging
 from typing import List, Optional, Dict, Any
 import fitz  # PyMuPDF

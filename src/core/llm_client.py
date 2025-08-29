@@ -5,9 +5,14 @@ Provides abstracted interface for interacting with Gemini API.
 
 import os
 import json
-from typing import Dict, Any, Optional
+import logging
+from typing import Dict, Any, TYPE_CHECKING
+from pydantic import ValidationError
 import google.generativeai as genai
 from google.generativeai.types import RequestOptions
+
+if TYPE_CHECKING:
+    from . import schemas
 
 
 class LLMClient:
@@ -22,7 +27,9 @@ class LLMClient:
         self.client = None
 
         if not self.api_key:
-            raise ValueError("GEMINI_API_KEY environment variable is required")
+            # For testing/development, allow initialization without API key
+            # The client will be None and methods will handle this gracefully
+            return
 
         # Configure the API
         genai.configure(api_key=self.api_key)
@@ -41,6 +48,9 @@ class LLMClient:
         Raises:
             Exception: If LLM API call fails or returns invalid JSON
         """
+        if not self.client:
+            raise Exception("LLM client not initialized - missing API key")
+
         prompt = self._build_toc_parsing_prompt(toc_text)
 
         try:
@@ -151,6 +161,9 @@ Parse the provided text and return the structured JSON:
         Returns:
             True if connection is successful
         """
+        if not self.client:
+            return False
+
         try:
             # Simple test query
             response = self.client.generate_content(
@@ -163,7 +176,7 @@ Parse the provided text and return the structured JSON:
         except Exception:
             return False
 
-    def generate_grounded_answer(self, query: str, context: str) -> 'schemas.Answer':
+    def generate_grounded_answer(self, query: str, context: str) -> "schemas.Answer":
         """
         Generate a grounded answer using retrieved context with mandatory citations.
 
@@ -177,6 +190,10 @@ Parse the provided text and return the structured JSON:
         Raises:
             Exception: If generation fails or validation fails
         """
+        if not self.client:
+            # Return fallback answer when API is not available
+            return self._create_fallback_answer("I apologize, but the LLM service is currently unavailable. Please try again later.")
+
         try:
             prompt = self._build_grounded_generation_prompt(query, context)
 
@@ -263,7 +280,7 @@ Return a JSON object with this exact structure:
 
 Generate your response:"""
 
-    def _validate_answer_response(self, answer_data: dict) -> 'schemas.Answer':
+    def _validate_answer_response(self, answer_data: dict) -> "schemas.Answer":
         """
         Validate and convert raw LLM response to Answer schema.
 
@@ -317,7 +334,7 @@ Generate your response:"""
         except Exception as e:
             raise ValidationError(f"Answer validation failed: {str(e)}")
 
-    def _create_fallback_answer(self, message: str) -> 'schemas.Answer':
+    def _create_fallback_answer(self, message: str) -> "schemas.Answer":
         """
         Create a fallback Answer object for error cases.
 

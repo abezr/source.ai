@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 import logging
 import os
-from .core.database import engine, Base, get_db, initialize_database
+from .core.database import get_db, initialize_database
 from .core import models, schemas, crud
 from .core.object_store import get_object_store_client
 from .core.llm_client import get_llm_client
@@ -253,7 +253,7 @@ async def query_books(
 
         # Step 2: Retrieval Gate
         if len(retrieved_chunks) < min_chunks:
-            fallback_msg = f"I couldn't find enough relevant information in the available documents to answer your question confidently. Please try rephrasing your query or check if the information you're looking for is in the uploaded books."
+            fallback_msg = "I couldn't find enough relevant information in the available documents to answer your question confidently. Please try rephrasing your query or check if the information you're looking for is in the uploaded books."
             logging.warning(f"Retrieval gate failed: only {len(retrieved_chunks)} chunks found (minimum: {min_chunks})")
             return schemas.QueryResponse(fallback_message=fallback_msg)
 
@@ -272,7 +272,7 @@ async def query_books(
 
         # Step 5: Generation Gate
         if answer.confidence_score < confidence_threshold:
-            fallback_msg = f"I'm not confident enough in my answer to provide it accurately. The available information doesn't sufficiently support a reliable response to your question."
+            fallback_msg = "I'm not confident enough in my answer to provide it accurately. The available information doesn't sufficiently support a reliable response to your question."
             logging.warning(f"Generation gate failed: confidence {answer.confidence_score:.2f} below threshold {confidence_threshold}")
             return schemas.QueryResponse(fallback_message=fallback_msg)
 
@@ -281,7 +281,7 @@ async def query_books(
         return schemas.QueryResponse(answer=answer)
 
     except Exception as e:
-        error_msg = f"I encountered an error while processing your query. Please try again."
+        error_msg = "I encountered an error while processing your query. Please try again."
         logging.error(f"Query processing failed: {str(e)}")
         return schemas.QueryResponse(fallback_message=error_msg)
 

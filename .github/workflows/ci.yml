@@ -33,6 +33,6 @@ jobs:
 
     - name: Run Evaluation Harness
       run: |
-        # This step assumes the evaluation script is runnable and reports success/failure
-        # The AI agent's job is to make this script robust.
+        # Run evaluation harness - it will automatically detect if API is available
+        # and use mock responses if needed (for CI when API server is not running)
         python scripts/run_evaluation.py

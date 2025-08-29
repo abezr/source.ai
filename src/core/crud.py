@@ -1,10 +1,10 @@
 from sqlalchemy.orm import Session
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 import logging
 from . import models, schemas
 from .graph import get_graph_driver
 from .vector_store import get_vector_store
-from ..agents.parser import parse_toc_from_pdf, chunk_and_embed_book
+from ..agents.parser import chunk_and_embed_book
 
 
 def create_book(db: Session, book: schemas.BookCreate) -> models.Book:

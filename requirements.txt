@@ -1,28 +1,23 @@
 fastapi
 uvicorn[standard]
+python-multipart
 pydantic
 python-dotenv
 ruff
 pytest
 httpx
-PDF/DjVu Parsing
 pymupdf
-For DjVu, ensure djvulibre is installed on the system
-Database
-sqlite is built-in
 sqlalchemy
 neo4j
-Vector Search
 sqlite-vec
 fastembed
-Observability
 opentelemetry-api
 opentelemetry-sdk
 opentelemetry-instrumentation-fastapi
 langfuse
-Object Storage
 boto3
-LLM Integration
 google-generativeai
-RAG Evaluation
 ragas
+pandas
+datasets
+nltk
