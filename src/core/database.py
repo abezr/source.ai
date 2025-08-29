@@ -19,7 +19,9 @@ def get_db() -> Session:
     Yields a database session and ensures it's closed after use.
     """
     if SessionLocal is None:
-        raise RuntimeError("Database not initialized. Call initialize_database() first.")
+        raise RuntimeError(
+            "Database not initialized. Call initialize_database() first."
+        )
     db = SessionLocal()
     try:
         yield db
@@ -33,7 +35,9 @@ def create_fts5_tables():
     This function should be called after Base.metadata.create_all().
     """
     if engine is None:
-        raise RuntimeError("Database engine not initialized. Call initialize_database() first.")
+        raise RuntimeError(
+            "Database engine not initialized. Call initialize_database() first."
+        )
 
     try:
         with engine.connect() as conn:
