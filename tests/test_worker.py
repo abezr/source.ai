@@ -247,6 +247,7 @@ class TestProcessBookFileArq:
                 with (
                     patch("src.core.worker._detect_file_type", return_value="pdf"),
                     patch("src.agents.parser.parse_toc_from_pdf", return_value=[]),
+                    patch("src.agents.parser._extract_toc_text_from_pdf", return_value=""),
                     patch(
                         "src.agents.parser._extract_full_text_from_pdf",
                         return_value="Test content",
@@ -324,6 +325,7 @@ class TestProcessBookFileArq:
                 with (
                     patch("src.core.worker._detect_file_type", return_value="pdf"),
                     patch("src.agents.parser.parse_toc_from_pdf", return_value=[]),
+                    patch("src.agents.parser._extract_toc_text_from_pdf", return_value=""),
                     patch(
                         "src.agents.parser._extract_full_text_from_pdf",
                         return_value="   \n\t  ",
@@ -361,6 +363,7 @@ class TestProcessBookFileArq:
                 with (
                     patch("src.core.worker._detect_file_type", return_value="pdf"),
                     patch("src.agents.parser.parse_toc_from_pdf", return_value=[]),
+                    patch("src.agents.parser._extract_toc_text_from_pdf", return_value=""),
                     patch(
                         "src.agents.parser._extract_full_text_from_pdf",
                         return_value="Test content",

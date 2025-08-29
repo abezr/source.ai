@@ -273,9 +273,17 @@ class TestSimilaritySearch:
         """Test handling of database errors during similarity search."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
+                call_count = 0
+                def selective_error(*args, **kwargs):
+                    nonlocal call_count
+                    call_count += 1
+                    if call_count > 2:  # Fail after table creation
+                        raise sqlite3.Error("Search error")
+                    return MagicMock()
+
                 with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
-                    mock_conn.execute.side_effect = sqlite3.Error("Search error")
+                    mock_conn.execute.side_effect = selective_error
                     mock_connect.return_value.__enter__.return_value = mock_conn
 
                     store = VectorStore(db_path=f.name)
@@ -286,7 +294,10 @@ class TestSimilaritySearch:
                     assert results == []
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
 
 class TestEmbeddingRetrieval:
@@ -337,9 +348,17 @@ class TestEmbeddingRetrieval:
         """Test handling of database errors during embedding retrieval."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
+                call_count = 0
+                def selective_error(*args, **kwargs):
+                    nonlocal call_count
+                    call_count += 1
+                    if call_count > 2:  # Fail after table creation
+                        raise sqlite3.Error("Retrieval error")
+                    return MagicMock()
+
                 with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
-                    mock_conn.execute.side_effect = sqlite3.Error("Retrieval error")
+                    mock_conn.execute.side_effect = selective_error
                     mock_connect.return_value.__enter__.return_value = mock_conn
 
                     store = VectorStore(db_path=f.name)
@@ -349,7 +368,10 @@ class TestEmbeddingRetrieval:
                     assert result is None
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
 
 class TestEmbeddingDeletion:
@@ -378,9 +400,17 @@ class TestEmbeddingDeletion:
         """Test handling of database errors during embedding deletion."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
+                call_count = 0
+                def selective_error(*args, **kwargs):
+                    nonlocal call_count
+                    call_count += 1
+                    if call_count > 2:  # Fail after table creation
+                        raise sqlite3.Error("Deletion error")
+                    return MagicMock()
+
                 with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
-                    mock_conn.execute.side_effect = sqlite3.Error("Deletion error")
+                    mock_conn.execute.side_effect = selective_error
                     mock_connect.return_value.__enter__.return_value = mock_conn
 
                     store = VectorStore(db_path=f.name)
@@ -390,7 +420,10 @@ class TestEmbeddingDeletion:
                     assert result is False
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
 
 class TestVectorStoreStats:
@@ -422,9 +455,17 @@ class TestVectorStoreStats:
         """Test handling of database errors during statistics retrieval."""
         with tempfile.NamedTemporaryFile(delete=False) as f:
             try:
+                call_count = 0
+                def selective_error(*args, **kwargs):
+                    nonlocal call_count
+                    call_count += 1
+                    if call_count > 2:  # Fail after table creation
+                        raise sqlite3.Error("Stats error")
+                    return MagicMock()
+
                 with patch("src.core.vector_store.sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
-                    mock_conn.execute.side_effect = sqlite3.Error("Stats error")
+                    mock_conn.execute.side_effect = selective_error
                     mock_connect.return_value.__enter__.return_value = mock_conn
 
                     store = VectorStore(db_path=f.name)
@@ -435,7 +476,10 @@ class TestVectorStoreStats:
                     assert "Stats error" in stats["error"]
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
 
 class TestGlobalVectorStore:
