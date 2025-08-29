@@ -237,6 +237,144 @@ def _build_toc_node_from_graph(chapter_data: dict) -> schemas.TOCNode:
     )
 
 
+def create_book_index_graph(book_id: int, index_entries: List[schemas.IndexEntry]) -> bool:
+    """
+    Create a graph structure in Neo4j for a book's alphabetical index.
+
+    Args:
+        book_id: The ID of the book
+        index_entries: List of IndexEntry objects representing index terms and page references
+
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        driver = get_graph_driver()
+
+        with driver.session() as session:
+            # First, create or ensure the book node exists
+            session.run(
+                """
+                MERGE (b:Book {id: $book_id})
+                ON CREATE SET b.created_at = datetime()
+                ON MATCH SET b.updated_at = datetime()
+                """,
+                book_id=book_id
+            )
+
+            # Create index term nodes and relationships
+            for entry in index_entries:
+                term_id = f"book_{book_id}_index_{hash(entry.term.lower())}"
+
+                # Create the index term node
+                session.run(
+                    """
+                    MERGE (t:IndexTerm {id: $term_id})
+                    ON CREATE SET
+                        t.term = $term,
+                        t.book_id = $book_id,
+                        t.created_at = datetime()
+                    ON MATCH SET
+                        t.updated_at = datetime()
+                    """,
+                    term_id=term_id,
+                    term=entry.term,
+                    book_id=book_id
+                )
+
+                # Create relationships to pages
+                for page_number in entry.page_numbers:
+                    page_id = f"book_{book_id}_page_{page_number}"
+
+                    # Create page node if it doesn't exist
+                    session.run(
+                        """
+                        MERGE (p:Page {id: $page_id})
+                        ON CREATE SET
+                            p.page_number = $page_number,
+                            p.book_id = $book_id,
+                            p.created_at = datetime()
+                        ON MATCH SET
+                            p.updated_at = datetime()
+                        """,
+                        page_id=page_id,
+                        page_number=page_number,
+                        book_id=book_id
+                    )
+
+                    # Create APPEARS_ON_PAGE relationship
+                    session.run(
+                        """
+                        MATCH (t:IndexTerm {id: $term_id}), (p:Page {id: $page_id})
+                        MERGE (t)-[:APPEARS_ON_PAGE]->(p)
+                        """,
+                        term_id=term_id,
+                        page_id=page_id
+                    )
+
+                # Create relationship from book to index term
+                session.run(
+                    """
+                    MATCH (b:Book {id: $book_id}), (t:IndexTerm {id: $term_id})
+                    MERGE (b)-[:HAS_INDEX_TERM]->(t)
+                    """,
+                    book_id=book_id,
+                    term_id=term_id
+                )
+
+        logging.info(f"Successfully created index graph for book {book_id} with {len(index_entries)} entries")
+        return True
+
+    except Exception as e:
+        logging.error(f"Failed to create index graph for book {book_id}: {str(e)}")
+        return False
+
+
+def get_book_index_terms(book_id: int) -> List[schemas.IndexEntry]:
+    """
+    Retrieve the alphabetical index terms for a book from Neo4j.
+
+    Args:
+        book_id: The ID of the book
+
+    Returns:
+        List of IndexEntry objects representing the index terms and their page references
+    """
+    try:
+        driver = get_graph_driver()
+
+        with driver.session() as session:
+            # Query to get index terms and their page references
+            result = session.run(
+                """
+                MATCH (b:Book {id: $book_id})-[:HAS_INDEX_TERM]->(t:IndexTerm)-[:APPEARS_ON_PAGE]->(p:Page)
+                RETURN t.term as term, collect(p.page_number) as page_numbers
+                ORDER BY t.term
+                """,
+                book_id=book_id
+            )
+
+            records = list(result)
+
+            if not records:
+                return []
+
+            # Convert to IndexEntry objects
+            index_entries = []
+            for record in records:
+                entry = schemas.IndexEntry(
+                    term=record["term"],
+                    page_numbers=sorted(record["page_numbers"])
+                )
+                index_entries.append(entry)
+
+            return index_entries
+
+    except Exception as e:
+        logging.error(f"Failed to retrieve index for book {book_id}: {str(e)}")
+        return []
+
+
 def update_book_source_path(db: Session, book_id: int, source_path: str) -> models.Book | None:
     """
     Update the source_path field for a specific book.

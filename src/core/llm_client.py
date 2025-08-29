@@ -76,6 +76,47 @@ class LLMClient:
         except Exception as e:
             raise Exception(f"LLM API call failed: {str(e)}")
 
+    def get_structured_index(self, index_text: str) -> Dict[str, Any]:
+        """
+        Parse alphabetical index text into structured JSON format using Gemini.
+
+        Args:
+            index_text: Raw alphabetical index text extracted from book
+
+        Returns:
+            Dict containing structured index data
+
+        Raises:
+            Exception: If LLM API call fails or returns invalid JSON
+        """
+        if not self.client:
+            raise Exception("LLM client not initialized - missing API key")
+
+        prompt = self._build_index_parsing_prompt(index_text)
+
+        try:
+            response = self.client.generate_content(
+                prompt,
+                generation_config=genai.types.GenerationConfig(
+                    temperature=0.1,  # Low temperature for consistent parsing
+                    top_p=0.8,
+                    top_k=10,
+                    max_output_tokens=4096,  # Larger output for index parsing
+                ),
+                request_options=RequestOptions(
+                    timeout=60.0  # 60 second timeout for complex index parsing
+                )
+            )
+
+            # Extract the JSON from the response
+            json_text = self._extract_json_from_response(response.text)
+            return json.loads(json_text)
+
+        except json.JSONDecodeError as e:
+            raise Exception(f"Failed to parse LLM response as JSON: {str(e)}")
+        except Exception as e:
+            raise Exception(f"LLM API call failed: {str(e)}")
+
     def _build_toc_parsing_prompt(self, toc_text: str) -> str:
         """
         Build the prompt for ToC parsing.
@@ -129,6 +170,63 @@ Return a JSON array of TOCNode objects with this exact structure:
 - Maintain the exact hierarchy from the original text
 - If page numbers are missing or unclear, use 0
 - Return only the JSON array, no markdown formatting or explanations
+
+Parse the provided text and return the structured JSON:
+"""
+
+    def _build_index_parsing_prompt(self, index_text: str) -> str:
+        """
+        Build the prompt for alphabetical index parsing.
+
+        Args:
+            index_text: Raw alphabetical index text
+
+        Returns:
+            Complete prompt string
+        """
+        return f"""
+You are a specialized AI assistant for parsing book Alphabetical Index into structured JSON format.
+
+Your task is to analyze the following index text and convert it into a structured JSON array of index entries.
+
+**Input Index Text:**
+{index_text}
+
+**Instructions:**
+1. Parse the text to identify index terms and their page references
+2. Extract terms and all associated page numbers
+3. Handle various formatting styles (commas, hyphens, ranges, etc.)
+4. Normalize term names (remove extra spaces, standardize capitalization)
+5. Return ONLY valid JSON - no additional text or explanations
+
+**Output Format:**
+Return a JSON array of IndexEntry objects with this exact structure:
+[
+  {{
+    "term": "Index Term",
+    "page_numbers": [5, 12, 45]
+  }},
+  {{
+    "term": "Another Term",
+    "page_numbers": [8, 23]
+  }}
+]
+
+**Important Rules:**
+- term: The index term as a string (normalized)
+- page_numbers: Array of integers representing page references
+- Handle page ranges like "5-7" as separate entries [5, 6, 7]
+- Handle comma-separated pages like "5, 12, 45" as [5, 12, 45]
+- Handle hyphenated ranges like "5-12" as [5, 6, 7, 8, 9, 10, 11, 12]
+- Ignore non-numeric page references
+- Return only the JSON array, no markdown formatting or explanations
+- If no valid index entries are found, return an empty array []
+
+**Examples of formats to handle:**
+- "Term, 5, 12, 45"
+- "Term 5-7, 12"
+- "Term........5, 12-15"
+- "term: 5, 12, 45"
 
 Parse the provided text and return the structured JSON:
 """

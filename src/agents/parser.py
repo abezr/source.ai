@@ -4,12 +4,13 @@ Handles PDF parsing, Table of Contents extraction, and content chunking with emb
 """
 
 import logging
+import subprocess
 from typing import List, Optional, Dict, Any
 import fitz  # PyMuPDF
 from pydantic import ValidationError
 from fastembed import TextEmbedding
 
-from ..core.schemas import TOCNode
+from ..core.schemas import TOCNode, IndexEntry
 from ..core.llm_client import get_llm_client
 
 # Set up logging
@@ -463,3 +464,197 @@ def chunk_and_embed_book(file_path: str, book_id: int) -> List[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Failed chunk and embed pipeline for book {book_id}: {str(e)}")
         raise
+
+
+def extract_text_from_djvu(file_path: str) -> str:
+    """
+    Extract text content from a DjVu file using djvutxt command.
+
+    Args:
+        file_path: Path to the DjVu file
+
+    Returns:
+        Complete text content of the DjVu file
+
+    Raises:
+        FileNotFoundError: If the DjVu file cannot be found or opened
+        Exception: If text extraction fails
+    """
+    try:
+        logger.info(f"Extracting text from DjVu file: {file_path}")
+
+        # Use djvutxt command to extract text
+        result = subprocess.run(
+            ['djvutxt', file_path],
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+
+        if result.returncode != 0:
+            error_msg = result.stderr.strip() or "Unknown error"
+            raise Exception(f"djvutxt command failed: {error_msg}")
+
+        text_content = result.stdout
+
+        if not text_content.strip():
+            logger.warning(f"No text content found in DjVu file: {file_path}")
+            return ""
+
+        logger.info(f"Successfully extracted {len(text_content)} characters from DjVu file")
+        return text_content
+
+    except subprocess.TimeoutExpired:
+        logger.error(f"Timeout extracting text from DjVu file: {file_path}")
+        raise Exception(f"Text extraction timed out for DjVu file: {file_path}")
+    except FileNotFoundError:
+        logger.error(f"DjVu file not found: {file_path}")
+        raise
+    except Exception as e:
+        logger.error(f"Failed to extract text from DjVu file {file_path}: {str(e)}")
+        raise
+
+
+def parse_index_from_text(text: str) -> List[IndexEntry]:
+    """
+    Parse alphabetical index from text content using LLM.
+
+    Args:
+        text: Raw text content that may contain an index
+
+    Returns:
+        List of IndexEntry objects representing the parsed index
+
+    Raises:
+        Exception: If index parsing fails
+    """
+    try:
+        logger.info("Parsing alphabetical index from text content")
+
+        # Use LLM to parse the index
+        llm_client = get_llm_client()
+        structured_data = llm_client.get_structured_index(text)
+
+        # Validate and convert to Pydantic models
+        index_entries = _validate_and_convert_index_data(structured_data)
+
+        logger.info(f"Successfully parsed {len(index_entries)} index entries")
+        return index_entries
+
+    except Exception as e:
+        logger.error(f"Failed to parse index from text: {str(e)}")
+        # Return empty list instead of raising to allow graceful degradation
+        return []
+
+
+def _validate_and_convert_index_data(data: dict) -> List[IndexEntry]:
+    """
+    Validate LLM response data and convert to IndexEntry objects.
+
+    Args:
+        data: Structured data from LLM (expected to be a list of dicts)
+
+    Returns:
+        List of validated IndexEntry objects
+
+    Raises:
+        ValidationError: If data doesn't match expected schema
+    """
+    try:
+        if not isinstance(data, list):
+            logger.warning("LLM response is not a list, attempting to wrap in list")
+            if isinstance(data, dict):
+                data = [data]
+            else:
+                raise ValidationError("LLM response must be a list or dict")
+
+        index_entries = []
+        for item in data:
+            try:
+                # Ensure page_numbers is a list
+                if 'page_numbers' not in item:
+                    item['page_numbers'] = []
+                elif not isinstance(item['page_numbers'], list):
+                    item['page_numbers'] = []
+
+                # Convert page numbers to integers
+                item['page_numbers'] = [int(page) for page in item['page_numbers'] if str(page).isdigit()]
+
+                # Create IndexEntry
+                entry = IndexEntry(**item)
+                index_entries.append(entry)
+
+            except ValidationError as e:
+                logger.warning(f"Skipping invalid index item: {item}, error: {str(e)}")
+                continue
+
+        return index_entries
+
+    except Exception as e:
+        logger.error(f"Failed to validate index data: {str(e)}")
+        raise ValidationError(f"Invalid index structure: {str(e)}")
+
+
+def identify_index_pages(text: str, total_pages: int) -> List[int]:
+    """
+    Heuristic to identify pages that likely contain the alphabetical index.
+
+    Args:
+        text: Full text content of the book
+        total_pages: Total number of pages in the book
+
+    Returns:
+        List of page numbers that likely contain the index
+    """
+    # Heuristic: Check last 5% of pages for index-like content
+    index_pages = []
+    pages_to_check = max(5, int(total_pages * 0.05))  # At least 5 pages, or 5% of total
+    start_page = max(0, total_pages - pages_to_check)
+
+    # Split text by pages (assuming page markers are present)
+    pages = text.split('\n\n')
+
+    for i in range(start_page, min(total_pages, len(pages))):
+        page_text = pages[i] if i < len(pages) else ""
+
+        if _is_likely_index_page(page_text):
+            index_pages.append(i + 1)  # Convert to 1-based page numbering
+
+    return index_pages
+
+
+def _is_likely_index_page(text: str) -> bool:
+    """
+    Heuristic to determine if a page likely contains an alphabetical index.
+
+    Args:
+        text: Extracted text from the page
+
+    Returns:
+        True if page appears to contain index content
+    """
+    text_lower = text.lower()
+
+    # Common index indicators
+    index_indicators = [
+        "index",
+        "subject index",
+        "name index",
+        "author index",
+        "alphabetical index"
+    ]
+
+    # Check for multiple index indicators
+    indicator_count = sum(1 for indicator in index_indicators if indicator in text_lower)
+
+    # Check for alphabetical patterns (A, B, C, etc.)
+    import re
+    alphabetical_pattern = re.findall(r'\b[A-Z]\b', text)
+
+    # Check for page number patterns in index format
+    page_pattern = re.findall(r'\d+(?:,\s*\d+)*', text)
+
+    # Consider it an index page if it has indicators or alphabetical/page patterns
+    return (indicator_count >= 1 or
+            len(alphabetical_pattern) >= 3 or
+            len(page_pattern) >= 5)

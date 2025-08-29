@@ -8,6 +8,7 @@ This module defines the background tasks for processing book uploads, including:
 """
 
 import logging
+import os
 from typing import Any, Dict
 
 from arq import ArqRedis
@@ -16,7 +17,7 @@ from arq.worker import Worker
 from pydantic import BaseSettings
 
 from .database import SessionLocal
-from ..agents.parser import parse_toc_from_pdf
+from ..agents.parser import parse_toc_from_pdf, extract_text_from_djvu, parse_index_from_text, identify_index_pages
 from ..core import crud
 
 
@@ -35,9 +36,10 @@ class WorkerSettings(BaseSettings):
 
 async def process_book_file_arq(ctx: Dict[str, Any], book_id: int, object_key: str) -> str:
     """
-    Arq background task to process a book file: parse ToC, chunk content, generate embeddings, and store everything.
+    Arq background task to process a book file: parse ToC, extract text, parse index, chunk content, generate embeddings, and store everything.
 
     This task includes automatic retries and DLQ functionality for failed jobs.
+    Supports both PDF and DjVu file formats.
 
     Args:
         ctx: Arq context containing Redis connection and job metadata
@@ -58,25 +60,79 @@ async def process_book_file_arq(ctx: Dict[str, Any], book_id: int, object_key: s
         # In production, this would download the file from MinIO
         local_file_path = f"/tmp/book_{book_id}.pdf"  # Placeholder
 
-        # Step 1: Parse the ToC using the parser agent
+        # Detect file type
+        file_extension = _detect_file_type(local_file_path)
+        logging.info(f"Detected file type: {file_extension} for book {book_id}")
+
+        # Step 1: Parse the ToC using the appropriate parser
         logging.info(f"Step 1: Parsing ToC for book {book_id}")
-        toc_nodes = parse_toc_from_pdf(local_file_path)
+        if file_extension == 'pdf':
+            toc_nodes = parse_toc_from_pdf(local_file_path)
+        elif file_extension == 'djvu':
+            # For DjVu files, we'll extract text and parse ToC from it
+            # This is a simplified approach - in production, you might want specialized DjVu ToC parsing
+            toc_nodes = []  # DjVu ToC parsing would need separate implementation
+            logging.info(f"DjVu ToC parsing not implemented yet for book {book_id}")
+        else:
+            raise ValueError(f"Unsupported file type: {file_extension}")
 
-        if not toc_nodes:
-            logging.warning(f"No ToC found for book {book_id}")
-            raise ValueError(f"No table of contents found in book {book_id}")
+        # Store the hierarchical structure in Neo4j if ToC was found
+        if toc_nodes:
+            toc_success = crud.create_book_toc_graph(book_id, toc_nodes)
+            if not toc_success:
+                logging.error(f"Failed to store ToC graph for book {book_id}")
+                raise RuntimeError(f"Failed to store ToC graph for book {book_id}")
+            logging.info(f"Successfully processed ToC for book {book_id}: {len(toc_nodes)} entries")
+        else:
+            logging.warning(f"No ToC found for book {book_id}, continuing with other processing")
 
-        # Store the hierarchical structure in Neo4j
-        toc_success = crud.create_book_toc_graph(book_id, toc_nodes)
+        # Step 2: Extract full text content for index parsing
+        logging.info(f"Step 2: Extracting text content for book {book_id}")
+        if file_extension == 'pdf':
+            # Use existing PDF text extraction
+            from ..agents.parser import _extract_full_text_from_pdf
+            full_text = _extract_full_text_from_pdf(local_file_path)
+        elif file_extension == 'djvu':
+            # Use DjVu text extraction
+            full_text = extract_text_from_djvu(local_file_path)
+        else:
+            raise ValueError(f"Unsupported file type for text extraction: {file_extension}")
 
-        if not toc_success:
-            logging.error(f"Failed to store ToC graph for book {book_id}")
-            raise RuntimeError(f"Failed to store ToC graph for book {book_id}")
+        if not full_text.strip():
+            logging.warning(f"No text content found in book {book_id}")
+            full_text = ""
 
-        logging.info(f"Successfully processed ToC for book {book_id}: {len(toc_nodes)} entries")
+        # Step 3: Parse alphabetical index if present
+        logging.info(f"Step 3: Parsing alphabetical index for book {book_id}")
+        index_entries = []
 
-        # Step 2: Chunk the book content and generate embeddings
-        logging.info(f"Step 2: Chunking and embedding content for book {book_id}")
+        if full_text:
+            try:
+                # Try to identify and parse index pages
+                index_pages = identify_index_pages(full_text, len(full_text.split('\n\n')))
+                if index_pages:
+                    logging.info(f"Found potential index pages: {index_pages} for book {book_id}")
+                    # Extract text from index pages for parsing
+                    index_text = _extract_index_text_from_pages(full_text, index_pages)
+                    if index_text:
+                        index_entries = parse_index_from_text(index_text)
+
+                if index_entries:
+                    # Store index in Neo4j graph
+                    index_success = crud.create_book_index_graph(book_id, index_entries)
+                    if index_success:
+                        logging.info(f"Successfully processed index for book {book_id}: {len(index_entries)} entries")
+                    else:
+                        logging.error(f"Failed to store index graph for book {book_id}")
+                        raise RuntimeError(f"Failed to store index graph for book {book_id}")
+                else:
+                    logging.info(f"No alphabetical index found for book {book_id}")
+
+            except Exception as e:
+                logging.warning(f"Index parsing failed for book {book_id}: {str(e)}, continuing without index")
+
+        # Step 4: Chunk the book content and generate embeddings
+        logging.info(f"Step 4: Chunking and embedding content for book {book_id}")
 
         # Get a database session for the chunking process
         db = SessionLocal()
@@ -138,6 +194,52 @@ async def move_to_dlq(ctx: Dict[str, Any], book_id: int, object_key: str, error_
 
     await redis.lpush(dlq_key, str(dlq_entry))
     logging.info(f"Moved failed job for book {book_id} to DLQ")
+
+
+def _detect_file_type(file_path: str) -> str:
+    """
+    Detect the file type based on file extension.
+
+    Args:
+        file_path: Path to the file
+
+    Returns:
+        File extension (lowercase) without the dot
+    """
+    if not os.path.exists(file_path):
+        # Fallback to PDF if file doesn't exist (for development/testing)
+        logging.warning(f"File {file_path} does not exist, assuming PDF")
+        return "pdf"
+
+    _, ext = os.path.splitext(file_path)
+    return ext.lower().lstrip('.')
+
+
+def _extract_index_text_from_pages(full_text: str, index_pages: list) -> str:
+    """
+    Extract text content from specific pages that are likely to contain the index.
+
+    Args:
+        full_text: Complete text content of the book
+        index_pages: List of page numbers that likely contain index
+
+    Returns:
+        Concatenated text from index pages
+    """
+    if not index_pages:
+        return ""
+
+    # Split text by pages (assuming page markers are present)
+    pages = full_text.split('\n\n')
+    index_texts = []
+
+    for page_num in index_pages:
+        if 1 <= page_num <= len(pages):  # Page numbers are 1-based
+            page_text = pages[page_num - 1]  # Convert to 0-based indexing
+            if page_text.strip():
+                index_texts.append(page_text)
+
+    return '\n\n'.join(index_texts)
 
 
 async def health_check():

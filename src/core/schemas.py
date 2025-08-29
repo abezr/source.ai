@@ -115,3 +115,14 @@ class QueryResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+
+class IndexEntry(BaseModel):
+    """
+    Schema for alphabetical index entries with term and page references.
+    """
+    term: str
+    page_numbers: List[int]
+
+    class Config:
+        orm_mode = True
