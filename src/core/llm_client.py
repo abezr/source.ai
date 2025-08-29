@@ -430,13 +430,17 @@ Generate your response:"""
                     and "source_chunk_id" in claim
                     and "page_number" in claim
                 ):
-                    valid_claims.append(
-                        {
-                            "text": str(claim["text"]),
-                            "source_chunk_id": int(claim["source_chunk_id"]),
-                            "page_number": int(claim["page_number"]),
-                        }
-                    )
+                    try:
+                        valid_claims.append(
+                            {
+                                "text": str(claim["text"]),
+                                "source_chunk_id": int(claim["source_chunk_id"]),
+                                "page_number": int(claim["page_number"]),
+                            }
+                        )
+                    except (ValueError, TypeError):
+                        # Skip invalid claims that can't be converted
+                        continue
 
             answer_data["claims"] = valid_claims
 
@@ -445,7 +449,8 @@ Generate your response:"""
             return answer
 
         except Exception as e:
-            raise ValidationError(f"Answer validation failed: {str(e)}")
+            # Create a simple exception instead of ValidationError to avoid Pydantic issues
+            raise Exception(f"Answer validation failed: {str(e)}")
 
     def _create_fallback_answer(self, message: str) -> "schemas.Answer":
         """

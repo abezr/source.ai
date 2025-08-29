@@ -14,7 +14,10 @@ from typing import Any, Dict
 from arq import ArqRedis
 from arq.connections import RedisSettings
 from arq.worker import Worker
-from pydantic import BaseSettings
+try:
+    from pydantic import BaseSettings
+except ImportError:
+    from pydantic_settings import BaseSettings
 
 from .database import SessionLocal
 from ..agents.parser import (
