@@ -11,6 +11,7 @@ For DjVu, ensure djvulibre is installed on the system
 Database
 sqlite is built-in
 sqlalchemy
+neo4j
 Vector Search
 sqlite-vec
 fastembed
@@ -19,3 +20,9 @@ opentelemetry-api
 opentelemetry-sdk
 opentelemetry-instrumentation-fastapi
 langfuse
+Object Storage
+boto3
+LLM Integration
+google-generativeai
+RAG Evaluation
+ragas

@@ -1,7 +1,13 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, BackgroundTasks, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
-from .core.database import engine, Base, get_db
+from typing import List
+import logging
+import os
+from .core.database import engine, Base, get_db, initialize_database
 from .core import models, schemas, crud
+from .core.object_store import get_object_store_client
+from .core.llm_client import get_llm_client
+from .agents.parser import parse_toc_from_pdf
 
 app = FastAPI(
     title="Hybrid Book Index (HBI) System",
@@ -10,11 +16,24 @@ app = FastAPI(
 )
 
 @app.get("/health", tags=["Monitoring"])
-async def health_check():
+async def health_check(background_tasks: BackgroundTasks):
     """
     Simple health check endpoint to confirm the API is running.
+    Also demonstrates background task capability.
     """
-    return {"status": "ok"}
+    # Add a simple background task to demonstrate functionality
+    background_tasks.add_task(log_health_check_request)
+    return {"status": "ok", "background_tasks": "enabled"}
+
+
+def log_health_check_request():
+    """
+    Simple background task that logs when health check is called.
+    This demonstrates the background task processing capability.
+    """
+    import logging
+    logging.info("Health check triggered a background task!")
+    print("Health check triggered a background task!")
 
 @app.post("/books/", response_model=schemas.Book, tags=["Books"])
 async def create_book(book: schemas.BookCreate, db: Session = Depends(get_db)):
@@ -50,8 +69,245 @@ async def read_book(book_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Book not found")
     return db_book
 
-# Create database tables on startup
-Base.metadata.create_all(bind=engine)
 
-# The AI Agent's task is to build out the rest of the API endpoints here.
-# For example: /ingest, /query, /books/{book_id}/toc
+@app.post("/books/{book_id}/upload", response_model=schemas.Book, tags=["Books"])
+async def upload_book_file(
+    book_id: int,
+    background_tasks: BackgroundTasks,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Upload a book file (PDF) for a specific book record.
+
+    - **book_id**: The ID of the book to upload file for
+    - **file**: The PDF file to upload
+    - **db**: Database session (injected automatically)
+
+    The file will be stored in MinIO and the book's source_path will be updated.
+    """
+    # Validate that the book exists
+    db_book = crud.get_book(db, book_id=book_id)
+    if db_book is None:
+        raise HTTPException(status_code=404, detail="Book not found")
+
+    # Validate file type (basic check)
+    if not file.filename.lower().endswith('.pdf'):
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF files are supported"
+        )
+
+    try:
+        # Get object store client
+        object_store = get_object_store_client()
+
+        # Generate unique object name
+        object_name = object_store.generate_unique_object_name(file.filename, book_id)
+
+        # Upload file to MinIO
+        object_store.upload_file_to_books_bucket(
+            file_object=file.file,
+            object_name=object_name,
+            content_type='application/pdf'
+        )
+
+        # Update book's source_path in database
+        updated_book = crud.update_book_source_path(db, book_id, object_name)
+        if updated_book is None:
+            raise HTTPException(status_code=500, detail="Failed to update book record")
+
+        # Trigger background parsing task
+        background_tasks.add_task(process_book_file, book_id, object_name)
+
+        return updated_book
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"File upload failed: {str(e)}"
+        )
+
+
+def process_book_file(book_id: int, object_key: str):
+    """
+    Background task to process a book file: parse ToC, chunk content, generate embeddings, and store everything.
+
+    Args:
+        book_id: The ID of the book to process
+        object_key: MinIO object key for the uploaded file
+    """
+    try:
+        logging.info(f"Starting background processing for book {book_id}, file: {object_key}")
+
+        # TODO: In production, download file from MinIO first
+        # For now, assume the file is locally accessible
+        # local_file_path = download_from_minio(object_key)
+
+        # For development/testing, we'll use a placeholder
+        # In production, this would download the file from MinIO
+        local_file_path = f"/tmp/book_{book_id}.pdf"  # Placeholder
+
+        # Step 1: Parse the ToC using the parser agent
+        logging.info(f"Step 1: Parsing ToC for book {book_id}")
+        toc_nodes = parse_toc_from_pdf(local_file_path)
+
+        if not toc_nodes:
+            logging.warning(f"No ToC found for book {book_id}")
+            return
+
+        # Store the hierarchical structure in Neo4j
+        toc_success = crud.create_book_toc_graph(book_id, toc_nodes)
+
+        if not toc_success:
+            logging.error(f"Failed to store ToC graph for book {book_id}")
+            # TODO: Add to dead letter queue for retry
+            return
+
+        logging.info(f"Successfully processed ToC for book {book_id}: {len(toc_nodes)} entries")
+
+        # Step 2: Chunk the book content and generate embeddings
+        logging.info(f"Step 2: Chunking and embedding content for book {book_id}")
+
+        # Get a database session for the chunking process
+        from .core.database import SessionLocal
+        db = SessionLocal()
+
+        try:
+            chunk_success = crud.process_book_chunks_and_embeddings(db, book_id, local_file_path)
+
+            if chunk_success:
+                logging.info(f"Successfully processed chunks and embeddings for book {book_id}")
+            else:
+                logging.error(f"Failed to process chunks and embeddings for book {book_id}")
+                # Continue processing even if chunking fails - ToC is still valuable
+
+        except Exception as e:
+            logging.error(f"Error during chunking and embedding for book {book_id}: {str(e)}")
+            # Continue processing even if chunking fails
+        finally:
+            db.close()
+
+        logging.info(f"Completed background processing for book {book_id}")
+
+    except Exception as e:
+        logging.error(f"Background processing failed for book {book_id}: {str(e)}")
+        # TODO: Add to dead letter queue for retry
+    
+    
+    @app.get("/books/{book_id}/toc", response_model=List[schemas.TOCNode], tags=["Books"])
+    async def get_book_toc(book_id: int, db: Session = Depends(get_db)):
+        """
+        Retrieve the hierarchical Table of Contents for a specific book.
+    
+        - **book_id**: The ID of the book to retrieve ToC for
+        - **db**: Database session (injected automatically)
+    
+        Returns the hierarchical ToC structure as parsed from the book's PDF.
+        If no ToC is available, returns an empty list.
+        """
+        # First verify the book exists
+        db_book = crud.get_book(db, book_id=book_id)
+        if db_book is None:
+            raise HTTPException(status_code=404, detail="Book not found")
+    
+        # Retrieve ToC from Neo4j graph database
+        toc_nodes = crud.get_toc_by_book_id(book_id)
+    
+        return toc_nodes
+
+
+@app.post("/query", response_model=schemas.QueryResponse, tags=["Query"])
+async def query_books(
+    request: schemas.QueryRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Query books using hybrid retrieval and grounded generation with quality gates.
+
+    This endpoint implements the complete RAG pipeline with anti-hallucination gates:
+    1. Retrieval Gate: Ensures sufficient relevant context is found
+    2. Generation Gate: Ensures high-confidence grounded answers
+    3. Fallback: Provides helpful messages when gates prevent answering
+
+    - **request**: Query request with question and optional filters
+    - **db**: Database session (injected automatically)
+
+    Returns a structured answer with citations or a fallback message.
+    """
+    try:
+        logging.info(f"Processing query: '{request.query}' (book_id: {request.book_id}, top_k: {request.top_k})")
+
+        # Get configurable thresholds from environment
+        min_chunks = int(os.getenv("RAG_MIN_CHUNKS", "2"))  # Minimum chunks required
+        confidence_threshold = float(os.getenv("RAG_CONFIDENCE_THRESHOLD", "0.7"))  # Minimum confidence score
+
+        # Step 1: Retrieval Phase
+        logging.info("Step 1: Performing hybrid retrieval")
+        retrieved_chunks = crud.hybrid_retrieve(
+            db=db,
+            query=request.query,
+            top_k=request.top_k,
+            book_id=request.book_id
+        )
+
+        # Step 2: Retrieval Gate
+        if len(retrieved_chunks) < min_chunks:
+            fallback_msg = f"I couldn't find enough relevant information in the available documents to answer your question confidently. Please try rephrasing your query or check if the information you're looking for is in the uploaded books."
+            logging.warning(f"Retrieval gate failed: only {len(retrieved_chunks)} chunks found (minimum: {min_chunks})")
+            return schemas.QueryResponse(fallback_message=fallback_msg)
+
+        logging.info(f"Retrieval gate passed: {len(retrieved_chunks)} chunks retrieved")
+
+        # Step 3: Format context for LLM
+        context = _format_chunks_for_llm(retrieved_chunks)
+
+        # Step 4: Generation Phase
+        logging.info("Step 4: Generating grounded answer")
+        llm_client = get_llm_client()
+        answer = llm_client.generate_grounded_answer(
+            query=request.query,
+            context=context
+        )
+
+        # Step 5: Generation Gate
+        if answer.confidence_score < confidence_threshold:
+            fallback_msg = f"I'm not confident enough in my answer to provide it accurately. The available information doesn't sufficiently support a reliable response to your question."
+            logging.warning(f"Generation gate failed: confidence {answer.confidence_score:.2f} below threshold {confidence_threshold}")
+            return schemas.QueryResponse(fallback_message=fallback_msg)
+
+        # Step 6: Success - return structured answer
+        logging.info(f"Generation gate passed: confidence {answer.confidence_score:.2f}, returning structured answer")
+        return schemas.QueryResponse(answer=answer)
+
+    except Exception as e:
+        error_msg = f"I encountered an error while processing your query. Please try again."
+        logging.error(f"Query processing failed: {str(e)}")
+        return schemas.QueryResponse(fallback_message=error_msg)
+
+
+def _format_chunks_for_llm(chunks: List[models.Chunk]) -> str:
+    """
+    Format retrieved chunks into context string for LLM consumption.
+
+    Args:
+        chunks: List of Chunk objects from retrieval
+
+    Returns:
+        Formatted context string with chunk IDs and page numbers
+    """
+    if not chunks:
+        return "No context available."
+
+    context_parts = []
+    for i, chunk in enumerate(chunks, 1):
+        context_parts.append(
+            f"[Chunk {i} - ID: {chunk.id}, Page: {chunk.page_number}]\n"
+            f"{chunk.chunk_text}\n"
+        )
+
+    return "\n".join(context_parts)
+
+
+# Initialize database with tables and FTS5 virtual tables
+initialize_database()
