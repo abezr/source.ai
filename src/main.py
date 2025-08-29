@@ -3,11 +3,20 @@ from sqlalchemy.orm import Session
 from typing import List
 import logging
 import os
+from arq import ArqRedis
+from arq.connections import RedisSettings
 from .core.database import get_db, initialize_database
 from .core import models, schemas, crud
 from .core.object_store import get_object_store_client
 from .core.llm_client import get_llm_client
-from .agents.parser import parse_toc_from_pdf
+
+
+def get_redis_client() -> ArqRedis:
+    """Get Redis client for enqueuing background jobs."""
+    redis_url = os.getenv("REDIS_URL", "redis://localhost:6379")
+    redis_settings = RedisSettings.from_dsn(redis_url)
+    return ArqRedis(redis_settings)
+
 
 app = FastAPI(
     title="Hybrid Book Index (HBI) System",
@@ -73,7 +82,6 @@ async def read_book(book_id: int, db: Session = Depends(get_db)):
 @app.post("/books/{book_id}/upload", response_model=schemas.Book, tags=["Books"])
 async def upload_book_file(
     book_id: int,
-    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     db: Session = Depends(get_db)
 ):
@@ -85,6 +93,7 @@ async def upload_book_file(
     - **db**: Database session (injected automatically)
 
     The file will be stored in MinIO and the book's source_path will be updated.
+    Background processing will be handled by Redis/arq workers.
     """
     # Validate that the book exists
     db_book = crud.get_book(db, book_id=book_id)
@@ -117,9 +126,15 @@ async def upload_book_file(
         if updated_book is None:
             raise HTTPException(status_code=500, detail="Failed to update book record")
 
-        # Trigger background parsing task
-        background_tasks.add_task(process_book_file, book_id, object_name)
+        # Enqueue background processing job with arq
+        redis_client = get_redis_client()
+        await redis_client.enqueue_job(
+            'process_book_file_arq',
+            book_id,
+            object_name
+        )
 
+        logging.info(f"Enqueued background processing job for book {book_id}, file: {object_name}")
         return updated_book
 
     except Exception as e:
@@ -129,70 +144,6 @@ async def upload_book_file(
         )
 
 
-def process_book_file(book_id: int, object_key: str):
-    """
-    Background task to process a book file: parse ToC, chunk content, generate embeddings, and store everything.
-
-    Args:
-        book_id: The ID of the book to process
-        object_key: MinIO object key for the uploaded file
-    """
-    try:
-        logging.info(f"Starting background processing for book {book_id}, file: {object_key}")
-
-        # TODO: In production, download file from MinIO first
-        # For now, assume the file is locally accessible
-        # local_file_path = download_from_minio(object_key)
-
-        # For development/testing, we'll use a placeholder
-        # In production, this would download the file from MinIO
-        local_file_path = f"/tmp/book_{book_id}.pdf"  # Placeholder
-
-        # Step 1: Parse the ToC using the parser agent
-        logging.info(f"Step 1: Parsing ToC for book {book_id}")
-        toc_nodes = parse_toc_from_pdf(local_file_path)
-
-        if not toc_nodes:
-            logging.warning(f"No ToC found for book {book_id}")
-            return
-
-        # Store the hierarchical structure in Neo4j
-        toc_success = crud.create_book_toc_graph(book_id, toc_nodes)
-
-        if not toc_success:
-            logging.error(f"Failed to store ToC graph for book {book_id}")
-            # TODO: Add to dead letter queue for retry
-            return
-
-        logging.info(f"Successfully processed ToC for book {book_id}: {len(toc_nodes)} entries")
-
-        # Step 2: Chunk the book content and generate embeddings
-        logging.info(f"Step 2: Chunking and embedding content for book {book_id}")
-
-        # Get a database session for the chunking process
-        from .core.database import SessionLocal
-        db = SessionLocal()
-
-        try:
-            chunk_success = crud.process_book_chunks_and_embeddings(db, book_id, local_file_path)
-
-            if chunk_success:
-                logging.info(f"Successfully processed chunks and embeddings for book {book_id}")
-            else:
-                logging.error(f"Failed to process chunks and embeddings for book {book_id}")
-                # Continue processing even if chunking fails - ToC is still valuable
-
-        except Exception as e:
-            logging.error(f"Error during chunking and embedding for book {book_id}: {str(e)}")
-            # Continue processing even if chunking fails
-        finally:
-            db.close()
-
-        logging.info(f"Completed background processing for book {book_id}")
-
-    except Exception as e:
-        logging.error(f"Background processing failed for book {book_id}: {str(e)}")
-        # TODO: Add to dead letter queue for retry
     
     
     @app.get("/books/{book_id}/toc", response_model=List[schemas.TOCNode], tags=["Books"])

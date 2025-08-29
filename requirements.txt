@@ -21,3 +21,5 @@ ragas
 pandas
 datasets
 nltk
+arq
+redis
