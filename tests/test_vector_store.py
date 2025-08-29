@@ -18,7 +18,9 @@ class TestVectorStoreInitialization:
 
     def test_init_with_default_path(self):
         """Test initialization with default database path."""
-        with patch("src.core.vector_store.SQLALCHEMY_DATABASE_URL", "sqlite:///./test.db"):
+        with patch(
+            "src.core.vector_store.SQLALCHEMY_DATABASE_URL", "sqlite:///./test.db"
+        ):
             with patch("sqlite3.connect") as mock_connect:
                 mock_conn = MagicMock()
                 mock_connect.return_value.__enter__.return_value = mock_conn
@@ -35,7 +37,9 @@ class TestVectorStoreInitialization:
 
     def test_init_with_sqlalchemy_url(self):
         """Test initialization with SQLAlchemy URL parsing."""
-        with patch("src.core.vector_store.SQLALCHEMY_DATABASE_URL", "sqlite:///./data/test.db"):
+        with patch(
+            "src.core.vector_store.SQLALCHEMY_DATABASE_URL", "sqlite:///./data/test.db"
+        ):
             with patch("sqlite3.connect") as mock_connect:
                 mock_conn = MagicMock()
                 mock_connect.return_value.__enter__.return_value = mock_conn
@@ -61,11 +65,17 @@ class TestVectorStoreInitialization:
                     calls = [call[0][0] for call in mock_conn.execute.call_args_list]
 
                     # Check for vector table creation
-                    vector_table_sql = any("CREATE VIRTUAL TABLE" in call and "vec0" in call for call in calls)
+                    vector_table_sql = any(
+                        "CREATE VIRTUAL TABLE" in call and "vec0" in call
+                        for call in calls
+                    )
                     assert vector_table_sql, "Vector table creation SQL not found"
 
                     # Check for regular table creation
-                    regular_table_sql = any("CREATE TABLE" in call and "chunk_embeddings" in call for call in calls)
+                    regular_table_sql = any(
+                        "CREATE TABLE" in call and "chunk_embeddings" in call
+                        for call in calls
+                    )
                     assert regular_table_sql, "Regular table creation SQL not found"
 
             finally:
@@ -80,7 +90,9 @@ class TestVectorStoreInitialization:
             try:
                 with patch("sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
-                    mock_conn.load_extension.side_effect = sqlite3.Error("Extension not found")
+                    mock_conn.load_extension.side_effect = sqlite3.Error(
+                        "Extension not found"
+                    )
                     mock_connect.return_value.__enter__.return_value = mock_conn
 
                     with pytest.raises(sqlite3.Error):
@@ -125,6 +137,7 @@ class TestEmbeddingStorage:
             try:
                 with patch("sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
+
                     # Make execute fail only on actual INSERT operations, not on table creation
                     def selective_side_effect(*args, **kwargs):
                         if args and len(args) > 0:
@@ -177,9 +190,14 @@ class TestEmbeddingStorage:
                                     if isinstance(param, str):
                                         try:
                                             parsed = json.loads(param)
-                                            if isinstance(parsed, list) and len(parsed) == len(embedding):
+                                            if isinstance(parsed, list) and len(
+                                                parsed
+                                            ) == len(embedding):
                                                 # Check if the values match (approximately for floats)
-                                                if all(abs(a - b) < 1e-10 for a, b in zip(parsed, embedding)):
+                                                if all(
+                                                    abs(a - b) < 1e-10
+                                                    for a, b in zip(parsed, embedding)
+                                                ):
                                                     json_found = True
                                                     break
                                         except (json.JSONDecodeError, TypeError):
@@ -187,7 +205,9 @@ class TestEmbeddingStorage:
                                 if json_found:
                                     break
 
-                    assert json_found, "JSON serialization of embedding not found in database calls"
+                    assert json_found, (
+                        "JSON serialization of embedding not found in database calls"
+                    )
 
             finally:
                 try:
@@ -447,6 +467,7 @@ class TestGlobalVectorStore:
 
             # Reset global state
             import src.core.vector_store as vs_module
+
             vs_module._vector_store = None
 
             instance = get_vector_store()

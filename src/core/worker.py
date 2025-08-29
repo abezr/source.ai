@@ -14,6 +14,7 @@ from typing import Any, Dict
 from arq import ArqRedis
 from arq.connections import RedisSettings
 from arq.worker import Worker
+
 try:
     from pydantic import BaseSettings
 except ImportError:

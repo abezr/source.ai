@@ -34,10 +34,9 @@ class TestLLMClientInitialization:
 
     def test_init_with_custom_model(self):
         """Test initialization with custom model name."""
-        with patch.dict("os.environ", {
-            "GEMINI_API_KEY": "test_key",
-            "GEMINI_MODEL": "gemini-pro"
-        }):
+        with patch.dict(
+            "os.environ", {"GEMINI_API_KEY": "test_key", "GEMINI_MODEL": "gemini-pro"}
+        ):
             with patch("google.generativeai.configure"):
                 with patch("google.generativeai.GenerativeModel") as mock_model:
                     client = LLMClient()
@@ -136,13 +135,9 @@ class TestAnswerValidation:
         answer_data = {
             "answer_summary": "This is a test answer",
             "claims": [
-                {
-                    "text": "Test claim",
-                    "source_chunk_id": 123,
-                    "page_number": 5
-                }
+                {"text": "Test claim", "source_chunk_id": 123, "page_number": 5}
             ],
-            "confidence_score": 0.85
+            "confidence_score": 0.85,
         }
 
         with patch("src.core.schemas.Answer") as mock_answer:
@@ -177,7 +172,7 @@ class TestAnswerValidation:
         answer_data = {
             "answer_summary": "Test",
             "claims": [],
-            "confidence_score": 1.5  # Invalid: > 1.0
+            "confidence_score": 1.5,  # Invalid: > 1.0
         }
 
         with patch("src.core.schemas.Answer") as mock_answer:
@@ -198,9 +193,13 @@ class TestAnswerValidation:
             "claims": [
                 {"text": "Valid claim", "source_chunk_id": 123, "page_number": 5},
                 {"invalid": "claim"},  # Missing required fields
-                {"text": "Another", "source_chunk_id": "invalid", "page_number": 10}  # Wrong types
+                {
+                    "text": "Another",
+                    "source_chunk_id": "invalid",
+                    "page_number": 10,
+                },  # Wrong types
             ],
-            "confidence_score": 0.8
+            "confidence_score": 0.8,
         }
 
         # The method should handle the ValueError internally and filter out invalid claims
@@ -230,9 +229,7 @@ class TestFallbackAnswer:
 
             assert result == mock_instance
             mock_answer.assert_called_once_with(
-                answer_summary=message,
-                claims=[],
-                confidence_score=0.0
+                answer_summary=message, claims=[], confidence_score=0.0
             )
 
 
@@ -303,10 +300,12 @@ class TestStructuredTOC:
         client.client = MagicMock()
 
         mock_response = MagicMock()
-        mock_response.text = 'invalid json'
+        mock_response.text = "invalid json"
         client.client.generate_content.return_value = mock_response
 
-        with patch("json.loads", side_effect=json.JSONDecodeError("Invalid JSON", "", 0)):
+        with patch(
+            "json.loads", side_effect=json.JSONDecodeError("Invalid JSON", "", 0)
+        ):
             with pytest.raises(Exception, match="Failed to parse LLM response as JSON"):
                 client.get_structured_toc("test toc text")
 
@@ -359,7 +358,10 @@ class TestGroundedAnswerGeneration:
 
         result = client.generate_grounded_answer("test query", "test context")
 
-        assert result.answer_summary == "I apologize, but the LLM service is currently unavailable. Please try again later."
+        assert (
+            result.answer_summary
+            == "I apologize, but the LLM service is currently unavailable. Please try again later."
+        )
         assert result.confidence_score == 0.0
         assert result.claims == []
 
@@ -369,7 +371,9 @@ class TestGroundedAnswerGeneration:
         client.client = MagicMock()
 
         mock_response = MagicMock()
-        mock_response.text = '{"answer_summary": "Test answer", "claims": [], "confidence_score": 0.8}'
+        mock_response.text = (
+            '{"answer_summary": "Test answer", "claims": [], "confidence_score": 0.8}'
+        )
         client.client.generate_content.return_value = mock_response
 
         with patch("src.core.schemas.Answer") as mock_answer:
@@ -386,7 +390,7 @@ class TestGroundedAnswerGeneration:
         client.client = MagicMock()
 
         mock_response = MagicMock()
-        mock_response.text = 'invalid json'
+        mock_response.text = "invalid json"
         client.client.generate_content.return_value = mock_response
 
         result = client.generate_grounded_answer("test query", "test context")
@@ -404,7 +408,10 @@ class TestGroundedAnswerGeneration:
         mock_response.text = '{"invalid": "data"}'
         client.client.generate_content.return_value = mock_response
 
-        with patch("src.core.llm_client.LLMClient._validate_answer_response", side_effect=Exception("Validation failed")):
+        with patch(
+            "src.core.llm_client.LLMClient._validate_answer_response",
+            side_effect=Exception("Validation failed"),
+        ):
             result = client.generate_grounded_answer("test query", "test context")
 
             # Should return fallback answer
@@ -433,4 +440,4 @@ class TestGlobalClient:
         instance = get_llm_client()
         assert instance is not None
         # The instance should be an LLMClient or have the expected interface
-        assert hasattr(instance, 'validate_connection')
+        assert hasattr(instance, "validate_connection")

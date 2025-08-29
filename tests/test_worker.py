@@ -106,7 +106,9 @@ class TestIndexTextExtraction:
 
     def test_extract_index_text_single_page(self):
         """Test extracting text from a single index page."""
-        full_text = "Page 1 content\n\nPage 2 content\n\nPage 3 content\n\nIndex: Apple, Banana"
+        full_text = (
+            "Page 1 content\n\nPage 2 content\n\nPage 3 content\n\nIndex: Apple, Banana"
+        )
         index_pages = [4]  # Index is on page 4 (1-indexed)
 
         result = _extract_index_text_from_pages(full_text, index_pages)
@@ -114,7 +116,9 @@ class TestIndexTextExtraction:
 
     def test_extract_index_text_multiple_pages(self):
         """Test extracting text from multiple index pages."""
-        full_text = "Page 1\n\nPage 2\n\nPage 3: Index part 1\n\nPage 4: Index part 2\n\nPage 5"
+        full_text = (
+            "Page 1\n\nPage 2\n\nPage 3: Index part 1\n\nPage 4: Index part 2\n\nPage 5"
+        )
         index_pages = [3, 4]
 
         result = _extract_index_text_from_pages(full_text, index_pages)
@@ -166,11 +170,7 @@ class TestMoveToDLQ:
     async def test_move_to_dlq_success(self):
         """Test successful move to DLQ."""
         mock_redis = AsyncMock()
-        ctx = {
-            "redis": mock_redis,
-            "job_try": 3,
-            "timestamp": "2024-01-01T00:00:00Z"
-        }
+        ctx = {"redis": mock_redis, "job_try": 3, "timestamp": "2024-01-01T00:00:00Z"}
 
         await move_to_dlq(ctx, 123, "test_key", "Test error")
 
@@ -247,11 +247,19 @@ class TestProcessBookFileArq:
                 with (
                     patch("src.core.worker._detect_file_type", return_value="pdf"),
                     patch("src.agents.parser.parse_toc_from_pdf", return_value=[]),
-                    patch("src.agents.parser._extract_full_text_from_pdf", return_value="Test content"),
+                    patch(
+                        "src.agents.parser._extract_full_text_from_pdf",
+                        return_value="Test content",
+                    ),
                     patch("src.agents.parser.identify_index_pages", return_value=[]),
-                    patch("src.core.crud.process_book_chunks_and_embeddings", return_value=True),
+                    patch(
+                        "src.core.crud.process_book_chunks_and_embeddings",
+                        return_value=True,
+                    ),
                     patch("src.core.worker.SessionLocal") as mock_session,
-                    patch("os.path.exists", return_value=True),  # Mock file existence check
+                    patch(
+                        "os.path.exists", return_value=True
+                    ),  # Mock file existence check
                 ):
                     mock_db = Mock()
                     mock_session.return_value = mock_db
@@ -276,9 +284,15 @@ class TestProcessBookFileArq:
             try:
                 with (
                     patch("src.core.worker._detect_file_type", return_value="djvu"),
-                    patch("src.agents.parser.extract_text_from_djvu", return_value="Test DjVu content"),
+                    patch(
+                        "src.agents.parser.extract_text_from_djvu",
+                        return_value="Test DjVu content",
+                    ),
                     patch("src.agents.parser.identify_index_pages", return_value=[]),
-                    patch("src.core.crud.process_book_chunks_and_embeddings", return_value=True),
+                    patch(
+                        "src.core.crud.process_book_chunks_and_embeddings",
+                        return_value=True,
+                    ),
                     patch("src.core.worker.SessionLocal") as mock_session,
                 ):
                     mock_db = Mock()
@@ -286,7 +300,9 @@ class TestProcessBookFileArq:
 
                     # Mock the subprocess.run call to avoid djvutxt dependency
                     with patch("subprocess.run") as mock_subprocess:
-                        mock_subprocess.return_value = Mock(stdout="Test DjVu content", stderr="")
+                        mock_subprocess.return_value = Mock(
+                            stdout="Test DjVu content", stderr=""
+                        )
                         result = await process_book_file_arq(ctx, 456, f.name)
 
                         assert "Successfully processed book 456" in result
@@ -308,11 +324,19 @@ class TestProcessBookFileArq:
                 with (
                     patch("src.core.worker._detect_file_type", return_value="pdf"),
                     patch("src.agents.parser.parse_toc_from_pdf", return_value=[]),
-                    patch("src.agents.parser._extract_full_text_from_pdf", return_value="   \n\t  "),  # Empty/whitespace only
+                    patch(
+                        "src.agents.parser._extract_full_text_from_pdf",
+                        return_value="   \n\t  ",
+                    ),  # Empty/whitespace only
                     patch("src.agents.parser.identify_index_pages", return_value=[]),
-                    patch("src.core.crud.process_book_chunks_and_embeddings", return_value=True),
+                    patch(
+                        "src.core.crud.process_book_chunks_and_embeddings",
+                        return_value=True,
+                    ),
                     patch("src.core.worker.SessionLocal") as mock_session,
-                    patch("os.path.exists", return_value=True),  # Mock file existence check
+                    patch(
+                        "os.path.exists", return_value=True
+                    ),  # Mock file existence check
                 ):
                     mock_db = Mock()
                     mock_session.return_value = mock_db
@@ -337,16 +361,26 @@ class TestProcessBookFileArq:
                 with (
                     patch("src.core.worker._detect_file_type", return_value="pdf"),
                     patch("src.agents.parser.parse_toc_from_pdf", return_value=[]),
-                    patch("src.agents.parser._extract_full_text_from_pdf", return_value="Test content"),
+                    patch(
+                        "src.agents.parser._extract_full_text_from_pdf",
+                        return_value="Test content",
+                    ),
                     patch("src.agents.parser.identify_index_pages", return_value=[]),
-                    patch("src.core.crud.process_book_chunks_and_embeddings", return_value=False),  # Failure
+                    patch(
+                        "src.core.crud.process_book_chunks_and_embeddings",
+                        return_value=False,
+                    ),  # Failure
                     patch("src.core.worker.SessionLocal") as mock_session,
-                    patch("os.path.exists", return_value=True),  # Mock file existence check
+                    patch(
+                        "os.path.exists", return_value=True
+                    ),  # Mock file existence check
                 ):
                     mock_db = Mock()
                     mock_session.return_value = mock_db
 
-                    with pytest.raises(RuntimeError, match="Failed to process chunks and embeddings"):
+                    with pytest.raises(
+                        RuntimeError, match="Failed to process chunks and embeddings"
+                    ):
                         await process_book_file_arq(ctx, 999, f.name)
 
             finally:
@@ -367,6 +401,7 @@ class TestWorkerConfiguration:
     def test_redis_settings_creation(self):
         """Test Redis settings creation."""
         from arq.connections import RedisSettings
+
         assert isinstance(redis_settings, RedisSettings)
 
     def test_functions_list(self):
@@ -378,6 +413,7 @@ class TestWorkerConfiguration:
     def test_worker_instance(self):
         """Test that worker instance is properly configured."""
         from arq.worker import Worker
+
         assert isinstance(worker, Worker)
         # Worker.functions returns a dict mapping function names to function objects
         # So we check that our functions are present in the worker's function registry
