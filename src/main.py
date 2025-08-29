@@ -192,10 +192,10 @@ async def upload_book_file(
         )
 
 
-    
-    
-    @app.get("/books/{book_id}/toc", response_model=List[schemas.TOCNode], tags=["Books"])
-    async def get_book_toc(book_id: int, db: Session = Depends(get_db)):
+
+
+@app.get("/books/{book_id}/toc", response_model=List[schemas.TOCNode], tags=["Books"])
+async def get_book_toc(book_id: int, db: Session = Depends(get_db)):
         """
         Retrieve the hierarchical Table of Contents for a specific book.
     

@@ -3,13 +3,13 @@ Comprehensive unit tests for CRUD layer functions.
 Uses in-memory SQLite for fast, isolated testing.
 """
 import pytest
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.core.database import Base
-from src.core import models, schemas, crud
+from src.core import schemas, crud
 
 
 @pytest.fixture(scope="function")
