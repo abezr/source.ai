@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 
 
@@ -7,8 +7,8 @@ class BookBase(BaseModel):
     Base schema for book data with common fields.
     """
 
-    title: str
-    author: str
+    title: str = Field(..., min_length=1, description="Book title")
+    author: str = Field(..., min_length=1, description="Book author")
 
 
 class BookCreate(BookBase):
