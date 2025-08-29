@@ -13,8 +13,18 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from src.main import app
-from src.core.database import Base
+from src.core.database import Base, initialize_database
 from src.core import schemas
+
+
+@pytest.fixture(scope="session", autouse=True)
+def initialize_test_database():
+    """Initialize the database for testing once per test session."""
+    try:
+        initialize_database()
+    except Exception as e:
+        # If initialization fails, we'll use the in-memory database instead
+        pass
 
 
 @pytest.fixture(scope="function")

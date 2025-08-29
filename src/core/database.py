@@ -7,13 +7,9 @@ import os
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./data/database/hbi.db"
 
-engine = create_engine(
-    SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False},  # Needed for SQLite
-)
-
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
+# Engine will be created during initialization
+engine = None
+SessionLocal = None
 Base = declarative_base()
 
 
@@ -22,6 +18,8 @@ def get_db() -> Session:
     Dependency function to get database session.
     Yields a database session and ensures it's closed after use.
     """
+    if SessionLocal is None:
+        raise RuntimeError("Database not initialized. Call initialize_database() first.")
     db = SessionLocal()
     try:
         yield db
@@ -34,6 +32,9 @@ def create_fts5_tables():
     Create FTS5 virtual tables for full-text search on chunks.
     This function should be called after Base.metadata.create_all().
     """
+    if engine is None:
+        raise RuntimeError("Database engine not initialized. Call initialize_database() first.")
+
     try:
         with engine.connect() as conn:
             # Create FTS5 virtual table for chunks
@@ -89,6 +90,8 @@ def initialize_database():
     Initialize the database by creating all tables and FTS5 virtual tables.
     Call this function once during application startup.
     """
+    global engine, SessionLocal
+
     try:
         # Ensure database directory exists
         db_path = "./data/database/hbi.db"
@@ -96,6 +99,13 @@ def initialize_database():
         if db_dir and not os.path.exists(db_dir):
             os.makedirs(db_dir, exist_ok=True)
             logging.info(f"Created database directory: {db_dir}")
+
+        # Create engine and session maker
+        engine = create_engine(
+            SQLALCHEMY_DATABASE_URL,
+            connect_args={"check_same_thread": False},  # Needed for SQLite
+        )
+        SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
         # Create regular SQLAlchemy tables
         Base.metadata.create_all(bind=engine)
