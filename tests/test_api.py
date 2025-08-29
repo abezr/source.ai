@@ -2,6 +2,7 @@
 Comprehensive integration tests for the HBI API endpoints.
 Uses httpx.AsyncClient for async testing and covers full API lifecycle.
 """
+
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient
@@ -44,17 +45,17 @@ def test_db():
 async def async_client():
     """Create an async test client for the FastAPI app."""
     from httpx import ASGITransport
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://testserver") as client:
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://testserver"
+    ) as client:
         yield client
 
 
 @pytest.fixture
 def sample_book_data():
     """Sample book data for testing."""
-    return {
-        "title": "Integration Test Book",
-        "author": "Test Author"
-    }
+    return {"title": "Integration Test Book", "author": "Test Author"}
 
 
 @pytest.fixture
@@ -136,10 +137,7 @@ class TestBookEndpoints:
         """Test books pagination."""
         # Create multiple books
         for i in range(5):
-            book_data = {
-                "title": f"Book {i}",
-                "author": f"Author {i}"
-            }
+            book_data = {"title": f"Book {i}", "author": f"Author {i}"}
             response = await async_client.post("/books/", json=book_data)
             assert response.status_code == 200
 
@@ -186,7 +184,9 @@ class TestFileUploadEndpoints:
     """Test cases for file upload endpoints."""
 
     @pytest.mark.asyncio
-    async def test_upload_book_file_success(self, async_client, sample_book_data, sample_pdf_file):
+    async def test_upload_book_file_success(
+        self, async_client, sample_book_data, sample_pdf_file
+    ):
         """Test successful book file upload."""
         # Create a book first
         create_response = await async_client.post("/books/", json=sample_book_data)
@@ -194,11 +194,14 @@ class TestFileUploadEndpoints:
         book_id = create_response.json()["id"]
 
         # Mock the object store and Redis client
-        with patch('src.main.get_object_store_client') as mock_store, \
-             patch('src.main.get_redis_client') as mock_redis:
-
+        with (
+            patch("src.main.get_object_store_client") as mock_store,
+            patch("src.main.get_redis_client") as mock_redis,
+        ):
             mock_object_store = Mock()
-            mock_object_store.generate_unique_object_name.return_value = f"book_{book_id}_test.pdf"
+            mock_object_store.generate_unique_object_name.return_value = (
+                f"book_{book_id}_test.pdf"
+            )
             mock_object_store.upload_file_to_books_bucket.return_value = None
             mock_store.return_value = mock_object_store
 
@@ -207,10 +210,7 @@ class TestFileUploadEndpoints:
 
             # Upload file
             files = {"file": ("test.pdf", sample_pdf_file, "application/pdf")}
-            response = await async_client.post(
-                f"/books/{book_id}/upload",
-                files=files
-            )
+            response = await async_client.post(f"/books/{book_id}/upload", files=files)
 
             assert response.status_code == 200
             data = response.json()
@@ -221,17 +221,16 @@ class TestFileUploadEndpoints:
     async def test_upload_book_file_book_not_found(self, async_client, sample_pdf_file):
         """Test uploading file for non-existent book."""
         files = {"file": ("test.pdf", sample_pdf_file, "application/pdf")}
-        response = await async_client.post(
-            "/books/999/upload",
-            files=files
-        )
+        response = await async_client.post("/books/999/upload", files=files)
 
         assert response.status_code == 404
         data = response.json()
         assert "Book not found" in data["detail"]
 
     @pytest.mark.asyncio
-    async def test_upload_book_file_invalid_format(self, async_client, sample_book_data):
+    async def test_upload_book_file_invalid_format(
+        self, async_client, sample_book_data
+    ):
         """Test uploading file with invalid format."""
         # Create a book first
         create_response = await async_client.post("/books/", json=sample_book_data)
@@ -241,10 +240,7 @@ class TestFileUploadEndpoints:
         # Try to upload a non-PDF file
         invalid_file = BytesIO(b"This is not a PDF file")
         files = {"file": ("test.txt", invalid_file, "text/plain")}
-        response = await async_client.post(
-            f"/books/{book_id}/upload",
-            files=files
-        )
+        response = await async_client.post(f"/books/{book_id}/upload", files=files)
 
         assert response.status_code == 400
         data = response.json()
@@ -266,7 +262,9 @@ class TestFileUploadEndpoints:
 class TestTOCEndpoints:
     """Test cases for Table of Contents endpoints."""
 
-    @pytest.mark.skip(reason="TOC endpoint has indentation issues in main.py - skipping for now")
+    @pytest.mark.skip(
+        reason="TOC endpoint has indentation issues in main.py - skipping for now"
+    )
     @pytest.mark.asyncio
     async def test_get_book_toc_success(self, async_client, sample_book_data):
         """Test successful TOC retrieval."""
@@ -276,14 +274,8 @@ class TestTOCEndpoints:
         book_id = create_response.json()["id"]
 
         # Mock the TOC retrieval
-        with patch('src.main.crud.get_toc_by_book_id') as mock_get_toc:
-            mock_toc = [
-                schemas.TOCNode(
-                    title="Chapter 1",
-                    page_number=1,
-                    children=[]
-                )
-            ]
+        with patch("src.main.crud.get_toc_by_book_id") as mock_get_toc:
+            mock_toc = [schemas.TOCNode(title="Chapter 1", page_number=1, children=[])]
             mock_get_toc.return_value = mock_toc
 
             response = await async_client.get(f"/books/{book_id}/toc")
@@ -292,7 +284,9 @@ class TestTOCEndpoints:
             data = response.json()
             assert isinstance(data, list)
 
-    @pytest.mark.skip(reason="TOC endpoint has indentation issues in main.py - skipping for now")
+    @pytest.mark.skip(
+        reason="TOC endpoint has indentation issues in main.py - skipping for now"
+    )
     @pytest.mark.asyncio
     async def test_get_book_toc_book_not_found(self, async_client):
         """Test TOC retrieval for non-existent book."""
@@ -309,19 +303,17 @@ class TestQueryEndpoints:
     @pytest.mark.asyncio
     async def test_query_success_with_answer(self, async_client):
         """Test successful query that returns an answer."""
-        query_data = {
-            "query": "What is the main topic of this book?",
-            "top_k": 5
-        }
+        query_data = {"query": "What is the main topic of this book?", "top_k": 5}
 
         # Mock the LLM client and retrieval
-        with patch('src.main.get_llm_client') as mock_llm, \
-             patch('src.main.crud.hybrid_retrieve') as mock_retrieve:
-
+        with (
+            patch("src.main.get_llm_client") as mock_llm,
+            patch("src.main.crud.hybrid_retrieve") as mock_retrieve,
+        ):
             # Mock retrieval results (need at least 2 chunks to pass retrieval gate)
             mock_chunks = [
                 Mock(id=1, chunk_text="Test chunk 1", page_number=1),
-                Mock(id=2, chunk_text="Test chunk 2", page_number=2)
+                Mock(id=2, chunk_text="Test chunk 2", page_number=2),
             ]
             mock_retrieve.return_value = mock_chunks
 
@@ -332,11 +324,13 @@ class TestQueryEndpoints:
             mock_answer.answer_summary = "This is a test answer"
             mock_answer.claims = []
             # Make it behave like a Pydantic model
-            mock_answer.dict = Mock(return_value={
-                "answer_summary": "This is a test answer",
-                "claims": [],
-                "confidence_score": 0.9
-            })
+            mock_answer.dict = Mock(
+                return_value={
+                    "answer_summary": "This is a test answer",
+                    "claims": [],
+                    "confidence_score": 0.9,
+                }
+            )
             mock_llm_client.generate_grounded_answer.return_value = mock_answer
             mock_llm.return_value = mock_llm_client
 
@@ -350,13 +344,10 @@ class TestQueryEndpoints:
     @pytest.mark.asyncio
     async def test_query_retrieval_gate_failure(self, async_client):
         """Test query when retrieval gate fails (not enough chunks)."""
-        query_data = {
-            "query": "Test query",
-            "top_k": 5
-        }
+        query_data = {"query": "Test query", "top_k": 5}
 
         # Mock retrieval with insufficient results
-        with patch('src.main.crud.hybrid_retrieve') as mock_retrieve:
+        with patch("src.main.crud.hybrid_retrieve") as mock_retrieve:
             mock_retrieve.return_value = []  # No chunks found
 
             response = await async_client.post("/query", json=query_data)
@@ -369,18 +360,16 @@ class TestQueryEndpoints:
     @pytest.mark.asyncio
     async def test_query_generation_gate_failure(self, async_client):
         """Test query when generation gate fails (low confidence)."""
-        query_data = {
-            "query": "Test query",
-            "top_k": 5
-        }
+        query_data = {"query": "Test query", "top_k": 5}
 
         # Mock retrieval and low-confidence LLM response
-        with patch('src.main.crud.hybrid_retrieve') as mock_retrieve, \
-             patch('src.main.get_llm_client') as mock_llm:
-
+        with (
+            patch("src.main.crud.hybrid_retrieve") as mock_retrieve,
+            patch("src.main.get_llm_client") as mock_llm,
+        ):
             mock_chunks = [
                 Mock(id=1, chunk_text="Test chunk 1", page_number=1),
-                Mock(id=2, chunk_text="Test chunk 2", page_number=2)
+                Mock(id=2, chunk_text="Test chunk 2", page_number=2),
             ]
             mock_retrieve.return_value = mock_chunks
 
@@ -400,18 +389,15 @@ class TestQueryEndpoints:
     @pytest.mark.asyncio
     async def test_query_with_book_filter(self, async_client):
         """Test query with book ID filter."""
-        query_data = {
-            "query": "Test query",
-            "book_id": 1,
-            "top_k": 3
-        }
+        query_data = {"query": "Test query", "book_id": 1, "top_k": 3}
 
-        with patch('src.main.crud.hybrid_retrieve') as mock_retrieve, \
-             patch('src.main.get_llm_client') as mock_llm:
-
+        with (
+            patch("src.main.crud.hybrid_retrieve") as mock_retrieve,
+            patch("src.main.get_llm_client") as mock_llm,
+        ):
             mock_chunks = [
                 Mock(id=1, chunk_text="Test chunk 1", page_number=1),
-                Mock(id=2, chunk_text="Test chunk 2", page_number=2)
+                Mock(id=2, chunk_text="Test chunk 2", page_number=2),
             ]
             mock_retrieve.return_value = mock_chunks
 
@@ -421,11 +407,13 @@ class TestQueryEndpoints:
             mock_answer.answer_summary = "Test answer"
             mock_answer.claims = []
             # Make it behave like a Pydantic model
-            mock_answer.dict = Mock(return_value={
-                "answer_summary": "Test answer",
-                "claims": [],
-                "confidence_score": 0.9
-            })
+            mock_answer.dict = Mock(
+                return_value={
+                    "answer_summary": "Test answer",
+                    "claims": [],
+                    "confidence_score": 0.9,
+                }
+            )
             mock_llm_client.generate_grounded_answer.return_value = mock_answer
             mock_llm.return_value = mock_llm_client
 
@@ -448,13 +436,10 @@ class TestQueryEndpoints:
     @pytest.mark.asyncio
     async def test_query_processing_error(self, async_client):
         """Test query when processing fails with exception."""
-        query_data = {
-            "query": "Test query",
-            "top_k": 5
-        }
+        query_data = {"query": "Test query", "top_k": 5}
 
         # Mock retrieval to raise an exception
-        with patch('src.main.crud.hybrid_retrieve') as mock_retrieve:
+        with patch("src.main.crud.hybrid_retrieve") as mock_retrieve:
             mock_retrieve.side_effect = Exception("Database error")
 
             response = await async_client.post("/query", json=query_data)
@@ -490,7 +475,7 @@ class TestErrorHandling:
         response = await async_client.post(
             "/books/",
             content="invalid json",
-            headers={"Content-Type": "application/json"}
+            headers={"Content-Type": "application/json"},
         )
 
         assert response.status_code == 422
@@ -501,7 +486,7 @@ class TestErrorHandling:
         response = await async_client.post(
             "/books/",
             content=str(sample_book_data),
-            headers={"Content-Type": "text/plain"}
+            headers={"Content-Type": "text/plain"},
         )
 
         assert response.status_code == 422
@@ -511,7 +496,9 @@ class TestIntegrationScenarios:
     """Test cases for complete integration scenarios."""
 
     @pytest.mark.asyncio
-    async def test_complete_book_lifecycle(self, async_client, sample_book_data, sample_pdf_file):
+    async def test_complete_book_lifecycle(
+        self, async_client, sample_book_data, sample_pdf_file
+    ):
         """Test complete book creation, upload, and query lifecycle."""
         # 1. Create book
         create_response = await async_client.post("/books/", json=sample_book_data)
@@ -519,11 +506,14 @@ class TestIntegrationScenarios:
         book_id = create_response.json()["id"]
 
         # 2. Upload file
-        with patch('src.main.get_object_store_client') as mock_store, \
-             patch('src.main.get_redis_client') as mock_redis:
-
+        with (
+            patch("src.main.get_object_store_client") as mock_store,
+            patch("src.main.get_redis_client") as mock_redis,
+        ):
             mock_object_store = Mock()
-            mock_object_store.generate_unique_object_name.return_value = f"book_{book_id}_test.pdf"
+            mock_object_store.generate_unique_object_name.return_value = (
+                f"book_{book_id}_test.pdf"
+            )
             mock_object_store.upload_file_to_books_bucket.return_value = None
             mock_store.return_value = mock_object_store
 
@@ -532,8 +522,7 @@ class TestIntegrationScenarios:
 
             files = {"file": ("test.pdf", sample_pdf_file, "application/pdf")}
             upload_response = await async_client.post(
-                f"/books/{book_id}/upload",
-                files=files
+                f"/books/{book_id}/upload", files=files
             )
             assert upload_response.status_code == 200
 
@@ -546,10 +535,10 @@ class TestIntegrationScenarios:
         query_data = {
             "query": "What is this book about?",
             "book_id": book_id,
-            "top_k": 5
+            "top_k": 5,
         }
 
-        with patch('src.main.crud.hybrid_retrieve') as mock_retrieve:
+        with patch("src.main.crud.hybrid_retrieve") as mock_retrieve:
             mock_retrieve.return_value = []  # No chunks processed yet
 
             query_response = await async_client.post("/query", json=query_data)
@@ -565,10 +554,7 @@ class TestIntegrationScenarios:
         # Create multiple books concurrently
         tasks = []
         for i in range(3):
-            book_data = {
-                "title": f"Concurrent Book {i}",
-                "author": f"Author {i}"
-            }
+            book_data = {"title": f"Concurrent Book {i}", "author": f"Author {i}"}
             task = async_client.post("/books/", json=book_data)
             tasks.append(task)
 

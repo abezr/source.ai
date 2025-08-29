@@ -64,7 +64,7 @@ class LLMClient:
                 ),
                 request_options=RequestOptions(
                     timeout=30.0  # 30 second timeout
-                )
+                ),
             )
 
             # Extract the JSON from the response
@@ -105,7 +105,7 @@ class LLMClient:
                 ),
                 request_options=RequestOptions(
                     timeout=60.0  # 60 second timeout for complex index parsing
-                )
+                ),
             )
 
             # Extract the JSON from the response
@@ -266,9 +266,7 @@ Parse the provided text and return the structured JSON:
             # Simple test query
             response = self.client.generate_content(
                 "Hello, can you confirm you're working?",
-                generation_config=genai.types.GenerationConfig(
-                    max_output_tokens=10
-                )
+                generation_config=genai.types.GenerationConfig(max_output_tokens=10),
             )
             return bool(response.text)
         except Exception:
@@ -290,7 +288,9 @@ Parse the provided text and return the structured JSON:
         """
         if not self.client:
             # Return fallback answer when API is not available
-            return self._create_fallback_answer("I apologize, but the LLM service is currently unavailable. Please try again later.")
+            return self._create_fallback_answer(
+                "I apologize, but the LLM service is currently unavailable. Please try again later."
+            )
 
         try:
             prompt = self._build_grounded_generation_prompt(query, context)
@@ -302,11 +302,11 @@ Parse the provided text and return the structured JSON:
                     top_p=0.8,
                     top_k=10,
                     max_output_tokens=2048,
-                    response_mime_type="application/json"  # Force JSON response
+                    response_mime_type="application/json",  # Force JSON response
                 ),
                 request_options=RequestOptions(
                     timeout=60.0  # 60 second timeout for complex generation
-                )
+                ),
             )
 
             # Extract and validate JSON response
@@ -320,13 +320,19 @@ Parse the provided text and return the structured JSON:
 
         except json.JSONDecodeError as e:
             logging.error(f"Failed to parse LLM JSON response: {str(e)}")
-            return self._create_fallback_answer("I apologize, but I encountered an error processing your request. Please try again.")
+            return self._create_fallback_answer(
+                "I apologize, but I encountered an error processing your request. Please try again."
+            )
         except ValidationError as e:
             logging.error(f"LLM response validation failed: {str(e)}")
-            return self._create_fallback_answer("I apologize, but I couldn't generate a properly validated response. Please try rephrasing your question.")
+            return self._create_fallback_answer(
+                "I apologize, but I couldn't generate a properly validated response. Please try rephrasing your question."
+            )
         except Exception as e:
             logging.error(f"Grounded answer generation failed: {str(e)}")
-            return self._create_fallback_answer("I apologize, but I'm currently unable to process your request. Please try again later.")
+            return self._create_fallback_answer(
+                "I apologize, but I'm currently unable to process your request. Please try again later."
+            )
 
     def _build_grounded_generation_prompt(self, query: str, context: str) -> str:
         """
@@ -396,34 +402,43 @@ Generate your response:"""
             from . import schemas
 
             # Ensure required fields exist
-            if 'answer_summary' not in answer_data:
-                answer_data['answer_summary'] = "No summary provided"
-            if 'claims' not in answer_data:
-                answer_data['claims'] = []
-            if 'confidence_score' not in answer_data:
-                answer_data['confidence_score'] = 0.0
+            if "answer_summary" not in answer_data:
+                answer_data["answer_summary"] = "No summary provided"
+            if "claims" not in answer_data:
+                answer_data["claims"] = []
+            if "confidence_score" not in answer_data:
+                answer_data["confidence_score"] = 0.0
 
             # Validate confidence score range
-            confidence = answer_data.get('confidence_score', 0.0)
-            if not isinstance(confidence, (int, float)) or not (0.0 <= confidence <= 1.0):
-                answer_data['confidence_score'] = 0.0
+            confidence = answer_data.get("confidence_score", 0.0)
+            if not isinstance(confidence, (int, float)) or not (
+                0.0 <= confidence <= 1.0
+            ):
+                answer_data["confidence_score"] = 0.0
 
             # Validate claims structure
-            claims = answer_data.get('claims', [])
+            claims = answer_data.get("claims", [])
             if not isinstance(claims, list):
                 claims = []
 
             # Filter out invalid claims
             valid_claims = []
             for claim in claims:
-                if isinstance(claim, dict) and 'text' in claim and 'source_chunk_id' in claim and 'page_number' in claim:
-                    valid_claims.append({
-                        'text': str(claim['text']),
-                        'source_chunk_id': int(claim['source_chunk_id']),
-                        'page_number': int(claim['page_number'])
-                    })
+                if (
+                    isinstance(claim, dict)
+                    and "text" in claim
+                    and "source_chunk_id" in claim
+                    and "page_number" in claim
+                ):
+                    valid_claims.append(
+                        {
+                            "text": str(claim["text"]),
+                            "source_chunk_id": int(claim["source_chunk_id"]),
+                            "page_number": int(claim["page_number"]),
+                        }
+                    )
 
-            answer_data['claims'] = valid_claims
+            answer_data["claims"] = valid_claims
 
             # Create and validate Answer object
             answer = schemas.Answer(**answer_data)
@@ -444,11 +459,7 @@ Generate your response:"""
         """
         from . import schemas
 
-        return schemas.Answer(
-            answer_summary=message,
-            claims=[],
-            confidence_score=0.0
-        )
+        return schemas.Answer(answer_summary=message, claims=[], confidence_score=0.0)
 
 
 # Global client instance

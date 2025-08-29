@@ -20,17 +20,21 @@ from ragas.metrics import (
     faithfulness,
     answer_relevancy,
     context_precision,
-    context_recall
+    context_recall,
 )
 import pandas as pd
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class EvaluationConfig:
     """Configuration for evaluation thresholds and API settings."""
+
     api_base_url: str = "http://localhost:8000"
     golden_dataset_path: str = "data/golden_set/golden_set.jsonl"
 
@@ -44,6 +48,7 @@ class EvaluationConfig:
     timeout_seconds: int = 30
     skip_api_calls: bool = False  # Skip API calls if API is not available (for CI)
 
+
 def load_golden_dataset(file_path: str) -> List[Dict[str, Any]]:
     """
     Load golden dataset from JSONL file.
@@ -56,7 +61,7 @@ def load_golden_dataset(file_path: str) -> List[Dict[str, Any]]:
     """
     samples = []
     try:
-        with open(file_path, 'r', encoding='utf-8') as f:
+        with open(file_path, "r", encoding="utf-8") as f:
             for line_num, line in enumerate(f, 1):
                 try:
                     sample = json.loads(line.strip())
@@ -75,7 +80,10 @@ def load_golden_dataset(file_path: str) -> List[Dict[str, Any]]:
         logger.error(f"Failed to load golden dataset: {e}")
         raise
 
-async def call_query_endpoint(base_url: str, question: str, timeout: int = 30) -> Dict[str, Any]:
+
+async def call_query_endpoint(
+    base_url: str, question: str, timeout: int = 30
+) -> Dict[str, Any]:
     """
     Call the /query endpoint with a question.
 
@@ -92,12 +100,17 @@ async def call_query_endpoint(base_url: str, question: str, timeout: int = 30) -
             response = await client.post(
                 f"{base_url}/query",
                 json={"query": question, "top_k": 5},
-                headers={"Content-Type": "application/json"}
+                headers={"Content-Type": "application/json"},
             )
 
             if response.status_code != 200:
-                logger.warning(f"API call failed with status {response.status_code}: {response.text}")
-                return {"error": f"HTTP {response.status_code}", "fallback_message": "API call failed"}
+                logger.warning(
+                    f"API call failed with status {response.status_code}: {response.text}"
+                )
+                return {
+                    "error": f"HTTP {response.status_code}",
+                    "fallback_message": "API call failed",
+                }
 
             return response.json()
 
@@ -107,6 +120,7 @@ async def call_query_endpoint(base_url: str, question: str, timeout: int = 30) -
     except Exception as e:
         logger.error(f"API call failed: {e}")
         return {"error": str(e), "fallback_message": "API call failed"}
+
 
 def extract_answer_and_contexts(api_response: Dict[str, Any]) -> tuple[str, List[str]]:
     """
@@ -137,7 +151,10 @@ def extract_answer_and_contexts(api_response: Dict[str, Any]) -> tuple[str, List
 
     return answer_text, contexts
 
-async def evaluate_sample(sample: Dict[str, Any], config: EvaluationConfig) -> Dict[str, Any]:
+
+async def evaluate_sample(
+    sample: Dict[str, Any], config: EvaluationConfig
+) -> Dict[str, Any]:
     """
     Evaluate a single sample from the golden dataset.
 
@@ -163,7 +180,9 @@ async def evaluate_sample(sample: Dict[str, Any], config: EvaluationConfig) -> D
         api_response = {"answer": {"answer_summary": answer_text}, "mock": True}
     else:
         # Call our API
-        api_response = await call_query_endpoint(config.api_base_url, question, config.timeout_seconds)
+        api_response = await call_query_endpoint(
+            config.api_base_url, question, config.timeout_seconds
+        )
 
         # Extract answer and contexts
         answer_text, retrieved_contexts = extract_answer_and_contexts(api_response)
@@ -171,14 +190,16 @@ async def evaluate_sample(sample: Dict[str, Any], config: EvaluationConfig) -> D
         # If we got a fallback message, use it as the answer
         if "fallback_message" in api_response and api_response.get("answer") is None:
             answer_text = api_response["fallback_message"]
-            retrieved_contexts = expected_contexts  # Use expected contexts for evaluation
+            retrieved_contexts = (
+                expected_contexts  # Use expected contexts for evaluation
+            )
 
     # Prepare data for RAGAS evaluation
     eval_data = {
         "question": [question],
         "answer": [answer_text],
         "contexts": [retrieved_contexts if retrieved_contexts else expected_contexts],
-        "ground_truth": [ground_truth]
+        "ground_truth": [ground_truth],
     }
 
     try:
@@ -192,24 +213,26 @@ async def evaluate_sample(sample: Dict[str, Any], config: EvaluationConfig) -> D
             "faithfulness": float(results["faithfulness"].iloc[0]),
             "answer_relevancy": float(results["answer_relevancy"].iloc[0]),
             "context_precision": float(results["context_precision"].iloc[0]),
-            "context_recall": float(results["context_recall"].iloc[0])
+            "context_recall": float(results["context_recall"].iloc[0]),
         }
 
         return {
             "question": question,
             "scores": scores,
             "answer": answer_text,
-            "success": True
+            "success": True,
         }
 
     except Exception as e:
-        logger.warning(f"RAGAS evaluation failed (likely due to missing API keys), using mock scores: {e}")
+        logger.warning(
+            f"RAGAS evaluation failed (likely due to missing API keys), using mock scores: {e}"
+        )
         # Provide mock scores when RAGAS fails (e.g., due to missing API keys in CI)
         mock_scores = {
             "faithfulness": 0.85,  # Mock passing score
             "answer_relevancy": 0.82,
             "context_precision": 0.88,
-            "context_recall": 0.80
+            "context_recall": 0.80,
         }
 
         return {
@@ -217,10 +240,13 @@ async def evaluate_sample(sample: Dict[str, Any], config: EvaluationConfig) -> D
             "scores": mock_scores,
             "answer": answer_text,
             "success": True,  # Mark as success for CI purposes
-            "note": "Used mock scores due to RAGAS evaluation failure"
+            "note": "Used mock scores due to RAGAS evaluation failure",
         }
 
-def print_evaluation_report(results: List[Dict[str, Any]], config: EvaluationConfig) -> bool:
+
+def print_evaluation_report(
+    results: List[Dict[str, Any]], config: EvaluationConfig
+) -> bool:
     """
     Print evaluation report and determine if all metrics pass thresholds.
 
@@ -231,12 +257,17 @@ def print_evaluation_report(results: List[Dict[str, Any]], config: EvaluationCon
     Returns:
         True if all metrics pass thresholds, False otherwise
     """
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     print("RAG EVALUATION REPORT")
-    print("="*80)
+    print("=" * 80)
 
     # Calculate averages
-    total_scores = {"faithfulness": 0.0, "answer_relevancy": 0.0, "context_precision": 0.0, "context_recall": 0.0}
+    total_scores = {
+        "faithfulness": 0.0,
+        "answer_relevancy": 0.0,
+        "context_precision": 0.0,
+        "context_recall": 0.0,
+    }
     successful_evaluations = 0
 
     for i, result in enumerate(results, 1):
@@ -262,9 +293,9 @@ def print_evaluation_report(results: List[Dict[str, Any]], config: EvaluationCon
     else:
         avg_scores = {k: 0.0 for k in total_scores.keys()}
 
-    print("\n" + "-"*80)
+    print("\n" + "-" * 80)
     print("AVERAGE SCORES:")
-    print("-"*80)
+    print("-" * 80)
     for metric, score in avg_scores.items():
         threshold = getattr(config, f"{metric}_threshold")
         status = "PASS" if score >= threshold else "FAIL"
@@ -274,22 +305,23 @@ def print_evaluation_report(results: List[Dict[str, Any]], config: EvaluationCon
 
     # Check if all metrics pass thresholds
     all_pass = (
-        avg_scores["faithfulness"] >= config.faithfulness_threshold and
-        avg_scores["answer_relevancy"] >= config.answer_relevancy_threshold and
-        avg_scores["context_precision"] >= config.context_precision_threshold and
-        avg_scores["context_recall"] >= config.context_recall_threshold
+        avg_scores["faithfulness"] >= config.faithfulness_threshold
+        and avg_scores["answer_relevancy"] >= config.answer_relevancy_threshold
+        and avg_scores["context_precision"] >= config.context_precision_threshold
+        and avg_scores["context_recall"] >= config.context_recall_threshold
     )
 
-    print("\n" + "="*80)
+    print("\n" + "=" * 80)
     if all_pass:
         print("✅ SUCCESS: All evaluation metrics passed thresholds!")
         print("The RAG system maintains high quality standards.")
     else:
         print("❌ FAILURE: One or more evaluation metrics failed!")
         print("The build should be rejected due to quality regression.")
-    print("="*80)
+    print("=" * 80)
 
     return all_pass
+
 
 async def check_api_availability(base_url: str, timeout: int = 5) -> bool:
     """
@@ -356,7 +388,9 @@ async def main():
         logger.error(f"Evaluation harness failed: {e}")
         sys.exit(1)
 
+
 if __name__ == "__main__":
     import asyncio
+
     exit_code = asyncio.run(main())
     sys.exit(exit_code)

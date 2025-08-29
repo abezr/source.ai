@@ -33,12 +33,12 @@ class ObjectStoreClient:
         """
         if self.client is None:
             self.client = boto3.client(
-                's3',
+                "s3",
                 endpoint_url=f"http{'s' if self.secure else ''}://{self.endpoint}",
                 aws_access_key_id=self.access_key,
                 aws_secret_access_key=self.secret_key,
-                region_name='us-east-1',  # MinIO doesn't use regions, but boto3 requires it
-                use_ssl=self.secure
+                region_name="us-east-1",  # MinIO doesn't use regions, but boto3 requires it
+                use_ssl=self.secure,
             )
         return self.client
 
@@ -53,7 +53,7 @@ class ObjectStoreClient:
             client = self._get_client()
             client.head_bucket(Bucket=self.bucket_name)
         except ClientError as e:
-            if e.response['Error']['Code'] == '404':
+            if e.response["Error"]["Code"] == "404":
                 # Bucket doesn't exist, create it
                 try:
                     client.create_bucket(Bucket=self.bucket_name)
@@ -67,10 +67,7 @@ class ObjectStoreClient:
                 ) from e
 
     def upload_file_to_books_bucket(
-        self,
-        file_object,
-        object_name: str,
-        content_type: Optional[str] = None
+        self, file_object, object_name: str, content_type: Optional[str] = None
     ) -> str:
         """
         Upload a file to the books bucket.
@@ -92,17 +89,17 @@ class ObjectStoreClient:
 
             # Set default content type if not provided
             if content_type is None:
-                if object_name.lower().endswith('.pdf'):
-                    content_type = 'application/pdf'
+                if object_name.lower().endswith(".pdf"):
+                    content_type = "application/pdf"
                 else:
-                    content_type = 'application/octet-stream'
+                    content_type = "application/octet-stream"
 
             # Upload the file
             client.upload_fileobj(
                 file_object,
                 self.bucket_name,
                 object_name,
-                ExtraArgs={'ContentType': content_type}
+                ExtraArgs={"ContentType": content_type},
             )
 
             return object_name
@@ -146,13 +143,15 @@ class ObjectStoreClient:
         try:
             client = self._get_client()
             url = client.generate_presigned_url(
-                'get_object',
-                Params={'Bucket': self.bucket_name, 'Key': object_name},
-                ExpiresIn=expires_in
+                "get_object",
+                Params={"Bucket": self.bucket_name, "Key": object_name},
+                ExpiresIn=expires_in,
             )
             return url
         except ClientError as e:
-            raise ClientError(f"Failed to generate URL for '{object_name}': {str(e)}") from e
+            raise ClientError(
+                f"Failed to generate URL for '{object_name}': {str(e)}"
+            ) from e
 
 
 # Global client instance

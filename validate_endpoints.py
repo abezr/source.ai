@@ -11,7 +11,8 @@ import sys
 import os
 
 # Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+
 
 def test_endpoint_imports():
     """Test that all endpoint modules can be imported successfully."""
@@ -37,6 +38,7 @@ def test_endpoint_imports():
 
     return True
 
+
 def validate_endpoint_definitions():
     """Validate that all expected endpoints are defined in the FastAPI app."""
     print("\n🔍 Validating endpoint definitions...")
@@ -47,7 +49,7 @@ def validate_endpoint_definitions():
         # Get all routes from the FastAPI app
         routes = []
         for route in app.routes:
-            if hasattr(route, 'methods') and hasattr(route, 'path'):
+            if hasattr(route, "methods") and hasattr(route, "path"):
                 for method in route.methods:
                     routes.append(f"{method} {route.path}")
 
@@ -60,7 +62,7 @@ def validate_endpoint_definitions():
             "GET /books/{book_id}",
             "POST /books/{book_id}/upload",
             "GET /books/{book_id}/toc",
-            "POST /query"
+            "POST /query",
         ]
 
         missing_endpoints = []
@@ -79,6 +81,7 @@ def validate_endpoint_definitions():
         print(f"❌ Failed to validate endpoint definitions: {e}")
         return False
 
+
 def test_schema_validity():
     """Test that all Pydantic schemas are valid and can be instantiated."""
     print("\n🔍 Testing schema validity...")
@@ -94,25 +97,18 @@ def test_schema_validity():
             relevance_threshold=0.5,
             max_context_length=4000,
             temperature=0.1,
-            enable_fallback=True
+            enable_fallback=True,
         )
         assert config.retrieval_top_k == 10
         print("✅ RAGConfig schema is valid")
 
         # Test BookCreate schema
-        book = schemas.BookCreate(
-            title="Test Book",
-            author="Test Author"
-        )
+        book = schemas.BookCreate(title="Test Book", author="Test Author")
         assert book.title == "Test Book"
         print("✅ BookCreate schema is valid")
 
         # Test QueryRequest schema
-        query = schemas.QueryRequest(
-            query="Test query",
-            book_id=1,
-            top_k=5
-        )
+        query = schemas.QueryRequest(query="Test query", book_id=1, top_k=5)
         assert query.book_id == 1
         print("✅ QueryRequest schema is valid")
 
@@ -122,12 +118,17 @@ def test_schema_validity():
         print(f"❌ Schema validation failed: {e}")
         return False
 
+
 def test_config_store():
     """Test that the configuration store works correctly."""
     print("\n🔍 Testing configuration store...")
 
     try:
-        from src.core.config_store import get_rag_config, update_rag_config, reset_rag_config
+        from src.core.config_store import (
+            get_rag_config,
+            update_rag_config,
+            reset_rag_config,
+        )
 
         # Test getting default config
         config = get_rag_config()
@@ -137,18 +138,23 @@ def test_config_store():
         new_config = config.copy()
         new_config.retrieval_top_k = 15
         updated = update_rag_config(new_config)
-        print(f"✅ Config updated successfully: retrieval_top_k={updated.retrieval_top_k}")
+        print(
+            f"✅ Config updated successfully: retrieval_top_k={updated.retrieval_top_k}"
+        )
 
         # Test reset
         reset_rag_config()
         reset_config = get_rag_config()
-        print(f"✅ Config reset successfully: retrieval_top_k={reset_config.retrieval_top_k}")
+        print(
+            f"✅ Config reset successfully: retrieval_top_k={reset_config.retrieval_top_k}"
+        )
 
         return True
 
     except Exception as e:
         print(f"❌ Config store test failed: {e}")
         return False
+
 
 def main():
     """Run all validation tests."""
@@ -194,6 +200,7 @@ def main():
     else:
         print("⚠️  Some validations failed. Please review the issues above.")
         return 1
+
 
 if __name__ == "__main__":
     sys.exit(main())

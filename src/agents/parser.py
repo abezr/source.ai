@@ -43,7 +43,9 @@ def parse_toc_from_pdf(file_path: str) -> List[TOCNode]:
         # Sanitize text before LLM processing for security
         sanitized_result = sanitize_text_with_audit(toc_text, context="toc")
         if sanitized_result.is_modified:
-            logger.info(f"ToC text sanitized for {file_path}: {sanitized_result.changes_made}")
+            logger.info(
+                f"ToC text sanitized for {file_path}: {sanitized_result.changes_made}"
+            )
 
         # Parse the sanitized text using LLM
         llm_client = get_llm_client()
@@ -52,7 +54,9 @@ def parse_toc_from_pdf(file_path: str) -> List[TOCNode]:
         # Validate and convert to Pydantic models
         toc_nodes = _validate_and_convert_toc_data(structured_data)
 
-        logger.info(f"Successfully parsed {len(toc_nodes)} ToC entries from {file_path}")
+        logger.info(
+            f"Successfully parsed {len(toc_nodes)} ToC entries from {file_path}"
+        )
         return toc_nodes
 
     except FileNotFoundError:
@@ -98,7 +102,9 @@ def _extract_toc_text_from_pdf(file_path: str) -> str:
                     logger.debug(f"Found potential ToC content on page {page_num + 1}")
 
             except Exception as e:
-                logger.warning(f"Failed to extract text from page {page_num + 1}: {str(e)}")
+                logger.warning(
+                    f"Failed to extract text from page {page_num + 1}: {str(e)}"
+                )
                 continue
 
         doc.close()
@@ -136,7 +142,7 @@ def _is_likely_toc_page(text: str) -> bool:
         "section",
         "part",
         "introduction",
-        "preface"
+        "preface",
     ]
 
     # Check for multiple ToC indicators
@@ -176,14 +182,14 @@ def _validate_and_convert_toc_data(data: dict) -> List[TOCNode]:
         for item in data:
             try:
                 # Ensure children is a list
-                if 'children' not in item:
-                    item['children'] = []
-                elif not isinstance(item['children'], list):
-                    item['children'] = []
+                if "children" not in item:
+                    item["children"] = []
+                elif not isinstance(item["children"], list):
+                    item["children"] = []
 
                 # Recursively validate children
-                if item['children']:
-                    item['children'] = _validate_and_convert_toc_data(item['children'])
+                if item["children"]:
+                    item["children"] = _validate_and_convert_toc_data(item["children"])
 
                 # Create TOCNode
                 node = TOCNode(**item)
@@ -290,7 +296,9 @@ def _extract_full_text_from_pdf(file_path: str) -> str:
                     full_text_parts.append(f"[PAGE {page_num + 1}]\n{text.strip()}")
 
             except Exception as e:
-                logger.warning(f"Failed to extract text from page {page_num + 1}: {str(e)}")
+                logger.warning(
+                    f"Failed to extract text from page {page_num + 1}: {str(e)}"
+                )
                 continue
 
         doc.close()
@@ -307,7 +315,9 @@ def _extract_full_text_from_pdf(file_path: str) -> str:
         raise FileNotFoundError(f"Cannot open PDF file: {file_path}")
 
 
-def _perform_semantic_chunking(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[dict]:
+def _perform_semantic_chunking(
+    text: str, chunk_size: int = 1000, overlap: int = 200
+) -> List[dict]:
     """
     Perform semantic chunking on text content using paragraph and sentence boundaries.
 
@@ -320,7 +330,7 @@ def _perform_semantic_chunking(text: str, chunk_size: int = 1000, overlap: int =
         List of chunk dictionaries with text, page_number, and chunk_order
     """
     # Split text into paragraphs first (more semantic than fixed-size chunks)
-    paragraphs = [p.strip() for p in text.split('\n\n') if p.strip()]
+    paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
 
     chunks = []
     current_chunk = ""
@@ -337,9 +347,9 @@ def _perform_semantic_chunking(text: str, chunk_size: int = 1000, overlap: int =
         if len(current_chunk + paragraph) > chunk_size and current_chunk:
             # Create chunk from current content
             chunk_data = {
-                'chunk_text': current_chunk.strip(),
-                'page_number': current_page,
-                'chunk_order': chunk_order
+                "chunk_text": current_chunk.strip(),
+                "page_number": current_page,
+                "chunk_order": chunk_order,
             }
             chunks.append(chunk_data)
             chunk_order += 1
@@ -361,9 +371,9 @@ def _perform_semantic_chunking(text: str, chunk_size: int = 1000, overlap: int =
     # Add final chunk if it has content
     if current_chunk.strip():
         chunk_data = {
-            'chunk_text': current_chunk.strip(),
-            'page_number': current_page,
-            'chunk_order': chunk_order
+            "chunk_text": current_chunk.strip(),
+            "page_number": current_page,
+            "chunk_order": chunk_order,
         }
         chunks.append(chunk_data)
 
@@ -383,7 +393,7 @@ def _extract_page_number_from_paragraph(paragraph: str) -> Optional[int]:
     import re
 
     # Look for [PAGE X] markers
-    page_match = re.search(r'\[PAGE (\d+)\]', paragraph)
+    page_match = re.search(r"\[PAGE (\d+)\]", paragraph)
     if page_match:
         try:
             return int(page_match.group(1))
@@ -412,10 +422,12 @@ def generate_embeddings_for_chunks(chunks: List[dict]) -> List[Dict[str, Any]]:
             return []
 
         # Initialize FastEmbed model (using a CPU-optimized model)
-        embedding_model = TextEmbedding(model_name="sentence-transformers/all-MiniLM-L6-v2")
+        embedding_model = TextEmbedding(
+            model_name="sentence-transformers/all-MiniLM-L6-v2"
+        )
 
         # Extract text content from chunks
-        texts = [chunk['chunk_text'] for chunk in chunks]
+        texts = [chunk["chunk_text"] for chunk in chunks]
 
         logger.info(f"Generating embeddings for {len(texts)} text chunks")
 
@@ -426,10 +438,14 @@ def generate_embeddings_for_chunks(chunks: List[dict]) -> List[Dict[str, Any]]:
         chunks_with_embeddings = []
         for chunk, embedding in zip(chunks, embeddings):
             chunk_with_embedding = chunk.copy()
-            chunk_with_embedding['embedding'] = embedding.tolist()  # Convert numpy array to list
+            chunk_with_embedding["embedding"] = (
+                embedding.tolist()
+            )  # Convert numpy array to list
             chunks_with_embeddings.append(chunk_with_embedding)
 
-        logger.info(f"Successfully generated embeddings for {len(chunks_with_embeddings)} chunks")
+        logger.info(
+            f"Successfully generated embeddings for {len(chunks_with_embeddings)} chunks"
+        )
         return chunks_with_embeddings
 
     except Exception as e:
@@ -464,7 +480,9 @@ def chunk_and_embed_book(file_path: str, book_id: int) -> List[Dict[str, Any]]:
         # Step 2: Generate embeddings for chunks
         chunks_with_embeddings = generate_embeddings_for_chunks(chunks)
 
-        logger.info(f"Successfully completed chunk and embed pipeline for book {book_id}: {len(chunks_with_embeddings)} chunks with embeddings")
+        logger.info(
+            f"Successfully completed chunk and embed pipeline for book {book_id}: {len(chunks_with_embeddings)} chunks with embeddings"
+        )
         return chunks_with_embeddings
 
     except Exception as e:
@@ -491,10 +509,10 @@ def extract_text_from_djvu(file_path: str) -> str:
 
         # Use djvutxt command to extract text
         result = subprocess.run(
-            ['djvutxt', file_path],
+            ["djvutxt", file_path],
             capture_output=True,
             text=True,
-            timeout=300  # 5 minute timeout
+            timeout=300,  # 5 minute timeout
         )
 
         if result.returncode != 0:
@@ -507,7 +525,9 @@ def extract_text_from_djvu(file_path: str) -> str:
             logger.warning(f"No text content found in DjVu file: {file_path}")
             return ""
 
-        logger.info(f"Successfully extracted {len(text_content)} characters from DjVu file")
+        logger.info(
+            f"Successfully extracted {len(text_content)} characters from DjVu file"
+        )
         return text_content
 
     except subprocess.TimeoutExpired:
@@ -544,7 +564,9 @@ def parse_index_from_text(text: str) -> List[IndexEntry]:
 
         # Use LLM to parse the sanitized index
         llm_client = get_llm_client()
-        structured_data = llm_client.get_structured_index(sanitized_result.sanitized_text)
+        structured_data = llm_client.get_structured_index(
+            sanitized_result.sanitized_text
+        )
 
         # Validate and convert to Pydantic models
         index_entries = _validate_and_convert_index_data(structured_data)
@@ -583,13 +605,15 @@ def _validate_and_convert_index_data(data: dict) -> List[IndexEntry]:
         for item in data:
             try:
                 # Ensure page_numbers is a list
-                if 'page_numbers' not in item:
-                    item['page_numbers'] = []
-                elif not isinstance(item['page_numbers'], list):
-                    item['page_numbers'] = []
+                if "page_numbers" not in item:
+                    item["page_numbers"] = []
+                elif not isinstance(item["page_numbers"], list):
+                    item["page_numbers"] = []
 
                 # Convert page numbers to integers
-                item['page_numbers'] = [int(page) for page in item['page_numbers'] if str(page).isdigit()]
+                item["page_numbers"] = [
+                    int(page) for page in item["page_numbers"] if str(page).isdigit()
+                ]
 
                 # Create IndexEntry
                 entry = IndexEntry(**item)
@@ -623,7 +647,7 @@ def identify_index_pages(text: str, total_pages: int) -> List[int]:
     start_page = max(0, total_pages - pages_to_check)
 
     # Split text by pages (assuming page markers are present)
-    pages = text.split('\n\n')
+    pages = text.split("\n\n")
 
     for i in range(start_page, min(total_pages, len(pages))):
         page_text = pages[i] if i < len(pages) else ""
@@ -652,20 +676,23 @@ def _is_likely_index_page(text: str) -> bool:
         "subject index",
         "name index",
         "author index",
-        "alphabetical index"
+        "alphabetical index",
     ]
 
     # Check for multiple index indicators
-    indicator_count = sum(1 for indicator in index_indicators if indicator in text_lower)
+    indicator_count = sum(
+        1 for indicator in index_indicators if indicator in text_lower
+    )
 
     # Check for alphabetical patterns (A, B, C, etc.)
     import re
-    alphabetical_pattern = re.findall(r'\b[A-Z]\b', text)
+
+    alphabetical_pattern = re.findall(r"\b[A-Z]\b", text)
 
     # Check for page number patterns in index format
-    page_pattern = re.findall(r'\d+(?:,\s*\d+)*', text)
+    page_pattern = re.findall(r"\d+(?:,\s*\d+)*", text)
 
     # Consider it an index page if it has indicators or alphabetical/page patterns
-    return (indicator_count >= 1 or
-            len(alphabetical_pattern) >= 3 or
-            len(page_pattern) >= 5)
+    return (
+        indicator_count >= 1 or len(alphabetical_pattern) >= 3 or len(page_pattern) >= 5
+    )

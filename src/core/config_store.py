@@ -23,7 +23,7 @@ DEFAULT_CONFIG = RAGConfig(
     relevance_threshold=0.5,
     max_context_length=4000,
     temperature=0.1,
-    enable_fallback=True
+    enable_fallback=True,
 )
 
 

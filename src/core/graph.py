@@ -35,12 +35,14 @@ class GraphClient:
                 # Connection pool settings for production
                 max_connection_lifetime=30 * 60,  # 30 minutes
                 max_connection_pool_size=50,
-                connection_acquisition_timeout=2.0
+                connection_acquisition_timeout=2.0,
             )
             # Test the connection
             self.driver.verify_connectivity()
         except ServiceUnavailable as e:
-            raise ServiceUnavailable(f"Failed to connect to Neo4j at {self.uri}: {str(e)}")
+            raise ServiceUnavailable(
+                f"Failed to connect to Neo4j at {self.uri}: {str(e)}"
+            )
 
     def close(self) -> None:
         """Close the Neo4j driver connection."""

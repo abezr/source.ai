@@ -86,18 +86,24 @@ class VectorStore:
                 embedding_json = json.dumps(embedding)
 
                 # Insert into regular table
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO chunk_embeddings (chunk_id, embedding)
                     VALUES (?, ?)
-                """, (chunk_id, embedding_json))
+                """,
+                    (chunk_id, embedding_json),
+                )
 
                 # Insert into vector table for fast search
                 # Convert to numpy array for sqlite-vec
                 embedding_array = np.array(embedding, dtype=np.float32)
-                conn.execute("""
+                conn.execute(
+                    """
                     INSERT OR REPLACE INTO chunk_embeddings_vec (chunk_id, embedding)
                     VALUES (?, ?)
-                """, (chunk_id, embedding_array.tobytes()))
+                """,
+                    (chunk_id, embedding_array.tobytes()),
+                )
 
                 conn.commit()
                 logging.debug(f"Stored embedding for chunk {chunk_id}")
@@ -107,7 +113,9 @@ class VectorStore:
             logging.error(f"Failed to store embedding for chunk {chunk_id}: {str(e)}")
             return False
 
-    def search_similar(self, query_embedding: List[float], limit: int = 10) -> List[Tuple[int, float]]:
+    def search_similar(
+        self, query_embedding: List[float], limit: int = 10
+    ) -> List[Tuple[int, float]]:
         """
         Search for similar embeddings using cosine similarity.
 
@@ -127,13 +135,16 @@ class VectorStore:
                 query_array = np.array(query_embedding, dtype=np.float32)
 
                 # Perform vector similarity search
-                cursor = conn.execute("""
+                cursor = conn.execute(
+                    """
                     SELECT chunk_id, distance
                     FROM chunk_embeddings_vec
                     WHERE embedding MATCH ?
                     ORDER BY distance
                     LIMIT ?
-                """, (query_array.tobytes(), limit))
+                """,
+                    (query_array.tobytes(), limit),
+                )
 
                 results = [(row[0], row[1]) for row in cursor.fetchall()]
                 logging.debug(f"Found {len(results)} similar chunks")
@@ -155,10 +166,13 @@ class VectorStore:
         """
         try:
             with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.execute("""
+                cursor = conn.execute(
+                    """
                     SELECT embedding FROM chunk_embeddings
                     WHERE chunk_id = ?
-                """, (chunk_id,))
+                """,
+                    (chunk_id,),
+                )
 
                 row = cursor.fetchone()
                 if row:
@@ -166,7 +180,9 @@ class VectorStore:
                 return None
 
         except Exception as e:
-            logging.error(f"Failed to retrieve embedding for chunk {chunk_id}: {str(e)}")
+            logging.error(
+                f"Failed to retrieve embedding for chunk {chunk_id}: {str(e)}"
+            )
             return None
 
     def delete_embedding(self, chunk_id: int) -> bool:
@@ -185,8 +201,12 @@ class VectorStore:
                 conn.load_extension("sqlite_vec")
 
                 # Delete from both tables
-                conn.execute("DELETE FROM chunk_embeddings WHERE chunk_id = ?", (chunk_id,))
-                conn.execute("DELETE FROM chunk_embeddings_vec WHERE chunk_id = ?", (chunk_id,))
+                conn.execute(
+                    "DELETE FROM chunk_embeddings WHERE chunk_id = ?", (chunk_id,)
+                )
+                conn.execute(
+                    "DELETE FROM chunk_embeddings_vec WHERE chunk_id = ?", (chunk_id,)
+                )
 
                 conn.commit()
                 logging.debug(f"Deleted embedding for chunk {chunk_id}")
@@ -211,7 +231,7 @@ class VectorStore:
                 return {
                     "total_embeddings": count,
                     "embedding_dimension": 384,  # Based on our model
-                    "database_path": self.db_path
+                    "database_path": self.db_path,
                 }
 
         except Exception as e:

@@ -21,7 +21,7 @@ def create_book(db: Session, book: schemas.BookCreate) -> models.Book:
     db_book = models.Book(
         title=book.title,
         author=book.author,
-        source_path=None  # Initially None, can be set later
+        source_path=None,  # Initially None, can be set later
     )
     db.add(db_book)
     db.commit()
@@ -80,7 +80,7 @@ def create_book_toc_graph(book_id: int, toc_nodes: List[schemas.TOCNode]) -> boo
                 ON CREATE SET b.created_at = datetime()
                 ON MATCH SET b.updated_at = datetime()
                 """,
-                book_id=book_id
+                book_id=book_id,
             )
 
             # Create the hierarchical structure
@@ -94,7 +94,9 @@ def create_book_toc_graph(book_id: int, toc_nodes: List[schemas.TOCNode]) -> boo
         return False
 
 
-def _create_toc_nodes_recursive(session, book_id: int, toc_nodes: List[schemas.TOCNode], parent_id: str = None):
+def _create_toc_nodes_recursive(
+    session, book_id: int, toc_nodes: List[schemas.TOCNode], parent_id: str = None
+):
     """
     Recursively create ToC nodes and relationships in Neo4j.
 
@@ -123,7 +125,7 @@ def _create_toc_nodes_recursive(session, book_id: int, toc_nodes: List[schemas.T
             node_id=node_id,
             title=node.title,
             page_number=node.page_number,
-            book_id=book_id
+            book_id=book_id,
         )
 
         # Create relationship to parent (or book if root level)
@@ -134,7 +136,7 @@ def _create_toc_nodes_recursive(session, book_id: int, toc_nodes: List[schemas.T
                 MERGE (parent)-[:HAS_CHILD]->(child)
                 """,
                 parent_id=parent_id,
-                node_id=node_id
+                node_id=node_id,
             )
         else:
             # Root level - connect to book
@@ -144,7 +146,7 @@ def _create_toc_nodes_recursive(session, book_id: int, toc_nodes: List[schemas.T
                 MERGE (b)-[:HAS_TOC]->(c)
                 """,
                 book_id=book_id,
-                node_id=node_id
+                node_id=node_id,
             )
 
         # Recursively process children
@@ -174,7 +176,7 @@ def get_toc_by_book_id(book_id: int) -> List[schemas.TOCNode]:
                 CALL apoc.convert.toTree(paths) YIELD value
                 RETURN value
                 """,
-                book_id=book_id
+                book_id=book_id,
             )
 
             records = list(result)
@@ -204,8 +206,8 @@ def _convert_graph_to_toc_nodes(graph_data: dict) -> List[schemas.TOCNode]:
     toc_nodes = []
 
     # Process root level chapters
-    if 'HAS_TOC' in graph_data:
-        for root_chapter in graph_data['HAS_TOC']:
+    if "HAS_TOC" in graph_data:
+        for root_chapter in graph_data["HAS_TOC"]:
             toc_node = _build_toc_node_from_graph(root_chapter)
             toc_nodes.append(toc_node)
 
@@ -225,19 +227,21 @@ def _build_toc_node_from_graph(chapter_data: dict) -> schemas.TOCNode:
     children = []
 
     # Process children if they exist
-    if 'HAS_CHILD' in chapter_data:
-        for child in chapter_data['HAS_CHILD']:
+    if "HAS_CHILD" in chapter_data:
+        for child in chapter_data["HAS_CHILD"]:
             child_node = _build_toc_node_from_graph(child)
             children.append(child_node)
 
     return schemas.TOCNode(
-        title=chapter_data.get('title', ''),
-        page_number=chapter_data.get('page_number', 0),
-        children=children
+        title=chapter_data.get("title", ""),
+        page_number=chapter_data.get("page_number", 0),
+        children=children,
     )
 
 
-def create_book_index_graph(book_id: int, index_entries: List[schemas.IndexEntry]) -> bool:
+def create_book_index_graph(
+    book_id: int, index_entries: List[schemas.IndexEntry]
+) -> bool:
     """
     Create a graph structure in Neo4j for a book's alphabetical index.
 
@@ -259,7 +263,7 @@ def create_book_index_graph(book_id: int, index_entries: List[schemas.IndexEntry
                 ON CREATE SET b.created_at = datetime()
                 ON MATCH SET b.updated_at = datetime()
                 """,
-                book_id=book_id
+                book_id=book_id,
             )
 
             # Create index term nodes and relationships
@@ -279,7 +283,7 @@ def create_book_index_graph(book_id: int, index_entries: List[schemas.IndexEntry
                     """,
                     term_id=term_id,
                     term=entry.term,
-                    book_id=book_id
+                    book_id=book_id,
                 )
 
                 # Create relationships to pages
@@ -299,7 +303,7 @@ def create_book_index_graph(book_id: int, index_entries: List[schemas.IndexEntry
                         """,
                         page_id=page_id,
                         page_number=page_number,
-                        book_id=book_id
+                        book_id=book_id,
                     )
 
                     # Create APPEARS_ON_PAGE relationship
@@ -309,7 +313,7 @@ def create_book_index_graph(book_id: int, index_entries: List[schemas.IndexEntry
                         MERGE (t)-[:APPEARS_ON_PAGE]->(p)
                         """,
                         term_id=term_id,
-                        page_id=page_id
+                        page_id=page_id,
                     )
 
                 # Create relationship from book to index term
@@ -319,10 +323,12 @@ def create_book_index_graph(book_id: int, index_entries: List[schemas.IndexEntry
                     MERGE (b)-[:HAS_INDEX_TERM]->(t)
                     """,
                     book_id=book_id,
-                    term_id=term_id
+                    term_id=term_id,
                 )
 
-        logging.info(f"Successfully created index graph for book {book_id} with {len(index_entries)} entries")
+        logging.info(
+            f"Successfully created index graph for book {book_id} with {len(index_entries)} entries"
+        )
         return True
 
     except Exception as e:
@@ -351,7 +357,7 @@ def get_book_index_terms(book_id: int) -> List[schemas.IndexEntry]:
                 RETURN t.term as term, collect(p.page_number) as page_numbers
                 ORDER BY t.term
                 """,
-                book_id=book_id
+                book_id=book_id,
             )
 
             records = list(result)
@@ -363,8 +369,7 @@ def get_book_index_terms(book_id: int) -> List[schemas.IndexEntry]:
             index_entries = []
             for record in records:
                 entry = schemas.IndexEntry(
-                    term=record["term"],
-                    page_numbers=sorted(record["page_numbers"])
+                    term=record["term"], page_numbers=sorted(record["page_numbers"])
                 )
                 index_entries.append(entry)
 
@@ -375,7 +380,9 @@ def get_book_index_terms(book_id: int) -> List[schemas.IndexEntry]:
         return []
 
 
-def update_book_source_path(db: Session, book_id: int, source_path: str) -> models.Book | None:
+def update_book_source_path(
+    db: Session, book_id: int, source_path: str
+) -> models.Book | None:
     """
     Update the source_path field for a specific book.
 
@@ -395,7 +402,9 @@ def update_book_source_path(db: Session, book_id: int, source_path: str) -> mode
     return book
 
 
-def create_chunks_and_embeddings(db: Session, book_id: int, chunks_with_embeddings: List[Dict[str, Any]]) -> bool:
+def create_chunks_and_embeddings(
+    db: Session, book_id: int, chunks_with_embeddings: List[Dict[str, Any]]
+) -> bool:
     """
     Store text chunks and their embeddings in the database.
 
@@ -418,20 +427,26 @@ def create_chunks_and_embeddings(db: Session, book_id: int, chunks_with_embeddin
         for chunk_data in chunks_with_embeddings:
             chunk = models.Chunk(
                 book_id=book_id,
-                chunk_text=chunk_data['chunk_text'],
-                page_number=chunk_data['page_number'],
-                chunk_order=chunk_data['chunk_order']
+                chunk_text=chunk_data["chunk_text"],
+                page_number=chunk_data["page_number"],
+                chunk_order=chunk_data["chunk_order"],
             )
             db.add(chunk)
             db.flush()  # Get the chunk ID for vector storage
 
             # Store embedding in vector database
-            embedding_success = _store_chunk_embedding(chunk.id, chunk_data['embedding'])
+            embedding_success = _store_chunk_embedding(
+                chunk.id, chunk_data["embedding"]
+            )
             if not embedding_success:
-                logging.warning(f"Failed to store embedding for chunk {chunk.id}, continuing...")
+                logging.warning(
+                    f"Failed to store embedding for chunk {chunk.id}, continuing..."
+                )
 
         db.commit()
-        logging.info(f"Successfully stored {len(chunks_with_embeddings)} chunks for book {book_id}")
+        logging.info(
+            f"Successfully stored {len(chunks_with_embeddings)} chunks for book {book_id}"
+        )
         return True
 
     except Exception as e:
@@ -456,7 +471,9 @@ def _store_chunk_embedding(chunk_id: int, embedding: List[float]) -> bool:
         success = vector_store.store_embedding(chunk_id, embedding)
 
         if success:
-            logging.debug(f"Stored embedding for chunk {chunk_id} with {len(embedding)} dimensions")
+            logging.debug(
+                f"Stored embedding for chunk {chunk_id} with {len(embedding)} dimensions"
+            )
         else:
             logging.error(f"Failed to store embedding for chunk {chunk_id}")
 
@@ -467,7 +484,9 @@ def _store_chunk_embedding(chunk_id: int, embedding: List[float]) -> bool:
         return False
 
 
-def get_chunks_by_book_id(db: Session, book_id: int, skip: int = 0, limit: int = 100) -> List[models.Chunk]:
+def get_chunks_by_book_id(
+    db: Session, book_id: int, skip: int = 0, limit: int = 100
+) -> List[models.Chunk]:
     """
     Retrieve chunks for a specific book.
 
@@ -480,12 +499,14 @@ def get_chunks_by_book_id(db: Session, book_id: int, skip: int = 0, limit: int =
     Returns:
         List of Chunk instances
     """
-    return db.query(models.Chunk)\
-        .filter(models.Chunk.book_id == book_id)\
-        .order_by(models.Chunk.chunk_order)\
-        .offset(skip)\
-        .limit(limit)\
+    return (
+        db.query(models.Chunk)
+        .filter(models.Chunk.book_id == book_id)
+        .order_by(models.Chunk.chunk_order)
+        .offset(skip)
+        .limit(limit)
         .all()
+    )
 
 
 def get_chunk_by_id(db: Session, chunk_id: int) -> models.Chunk | None:
@@ -502,7 +523,9 @@ def get_chunk_by_id(db: Session, chunk_id: int) -> models.Chunk | None:
     return db.query(models.Chunk).filter(models.Chunk.id == chunk_id).first()
 
 
-def process_book_chunks_and_embeddings(db: Session, book_id: int, file_path: str) -> bool:
+def process_book_chunks_and_embeddings(
+    db: Session, book_id: int, file_path: str
+) -> bool:
     """
     Complete pipeline: chunk book content, generate embeddings, and store everything.
 
@@ -528,18 +551,24 @@ def process_book_chunks_and_embeddings(db: Session, book_id: int, file_path: str
         success = create_chunks_and_embeddings(db, book_id, chunks_with_embeddings)
 
         if success:
-            logging.info(f"Successfully processed chunks and embeddings for book {book_id}")
+            logging.info(
+                f"Successfully processed chunks and embeddings for book {book_id}"
+            )
         else:
             logging.error(f"Failed to store chunks and embeddings for book {book_id}")
 
         return success
 
     except Exception as e:
-        logging.error(f"Failed to process chunks and embeddings for book {book_id}: {str(e)}")
+        logging.error(
+            f"Failed to process chunks and embeddings for book {book_id}: {str(e)}"
+        )
         return False
 
 
-def lexical_search(db: Session, query: str, limit: int = 10, book_id: int = None) -> List[Tuple[int, float]]:
+def lexical_search(
+    db: Session, query: str, limit: int = 10, book_id: int = None
+) -> List[Tuple[int, float]]:
     """
     Perform lexical search using SQLite FTS5 on chunk text.
 
@@ -575,7 +604,9 @@ def lexical_search(db: Session, query: str, limit: int = 10, book_id: int = None
         # Convert results to list of tuples
         search_results = [(row[0], float(row[1])) for row in result]
 
-        logging.debug(f"Lexical search for '{query}' returned {len(search_results)} results")
+        logging.debug(
+            f"Lexical search for '{query}' returned {len(search_results)} results"
+        )
         return search_results
 
     except Exception as e:
@@ -583,7 +614,9 @@ def lexical_search(db: Session, query: str, limit: int = 10, book_id: int = None
         return []
 
 
-def vector_search(query_embedding: List[float], limit: int = 10, book_id: int = None) -> List[Tuple[int, float]]:
+def vector_search(
+    query_embedding: List[float], limit: int = 10, book_id: int = None
+) -> List[Tuple[int, float]]:
     """
     Perform vector similarity search using sqlite-vec.
 
@@ -597,30 +630,34 @@ def vector_search(query_embedding: List[float], limit: int = 10, book_id: int = 
     """
     try:
         from .vector_store import get_vector_store
+
         vector_store = get_vector_store()
 
         # Get all similar chunks
-        all_results = vector_store.search_similar(query_embedding, limit=limit * 2)  # Get more for filtering
+        all_results = vector_store.search_similar(
+            query_embedding, limit=limit * 2
+        )  # Get more for filtering
 
         if book_id is not None:
             # Filter results to specific book
             from sqlalchemy import text
             from .database import SessionLocal
+
             temp_db = SessionLocal()
 
             try:
                 # Get chunk IDs that belong to the specified book
                 book_chunk_ids = set()
                 result = temp_db.execute(
-                    text("SELECT id FROM chunks WHERE book_id = ?"),
-                    [book_id]
+                    text("SELECT id FROM chunks WHERE book_id = ?"), [book_id]
                 ).fetchall()
 
                 book_chunk_ids = {row[0] for row in result}
 
                 # Filter vector results to only include chunks from the specified book
                 filtered_results = [
-                    (chunk_id, score) for chunk_id, score in all_results
+                    (chunk_id, score)
+                    for chunk_id, score in all_results
                     if chunk_id in book_chunk_ids
                 ][:limit]
 
@@ -637,9 +674,11 @@ def vector_search(query_embedding: List[float], limit: int = 10, book_id: int = 
         return []
 
 
-def reciprocal_rank_fusion(lexical_results: List[Tuple[int, float]],
-                          vector_results: List[Tuple[int, float]],
-                          k: int = 60) -> List[Tuple[int, float]]:
+def reciprocal_rank_fusion(
+    lexical_results: List[Tuple[int, float]],
+    vector_results: List[Tuple[int, float]],
+    k: int = 60,
+) -> List[Tuple[int, float]]:
     """
     Combine lexical and vector search results using Reciprocal Rank Fusion (RRF).
 
@@ -666,12 +705,16 @@ def reciprocal_rank_fusion(lexical_results: List[Tuple[int, float]],
 
             # Add lexical contribution if present
             if chunk_id in lexical_scores:
-                lexical_rank = lexical_results.index((chunk_id, lexical_scores[chunk_id])) + 1
+                lexical_rank = (
+                    lexical_results.index((chunk_id, lexical_scores[chunk_id])) + 1
+                )
                 rrf_score += 1.0 / (k + lexical_rank)
 
             # Add vector contribution if present
             if chunk_id in vector_scores:
-                vector_rank = vector_results.index((chunk_id, vector_scores[chunk_id])) + 1
+                vector_rank = (
+                    vector_results.index((chunk_id, vector_scores[chunk_id])) + 1
+                )
                 rrf_score += 1.0 / (k + vector_rank)
 
             rrf_scores[chunk_id] = rrf_score
@@ -679,7 +722,9 @@ def reciprocal_rank_fusion(lexical_results: List[Tuple[int, float]],
         # Sort by RRF score (descending)
         sorted_results = sorted(rrf_scores.items(), key=lambda x: x[1], reverse=True)
 
-        logging.debug(f"RRF combined {len(lexical_results)} lexical and {len(vector_results)} vector results into {len(sorted_results)} fused results")
+        logging.debug(
+            f"RRF combined {len(lexical_results)} lexical and {len(vector_results)} vector results into {len(sorted_results)} fused results"
+        )
         return sorted_results
 
     except Exception as e:
@@ -688,7 +733,9 @@ def reciprocal_rank_fusion(lexical_results: List[Tuple[int, float]],
         return lexical_results
 
 
-def hybrid_retrieve(db: Session, query: str, top_k: int = 10, book_id: int = None) -> List[models.Chunk]:
+def hybrid_retrieve(
+    db: Session, query: str, top_k: int = 10, book_id: int = None
+) -> List[models.Chunk]:
     """
     Perform hybrid retrieval combining lexical and vector search with RRF.
 
@@ -704,19 +751,28 @@ def hybrid_retrieve(db: Session, query: str, top_k: int = 10, book_id: int = Non
     try:
         # Generate embedding for the query
         from ..agents.parser import generate_embeddings_for_chunks
-        query_chunks = generate_embeddings_for_chunks([{'chunk_text': query, 'page_number': 0, 'chunk_order': 0}])
+
+        query_chunks = generate_embeddings_for_chunks(
+            [{"chunk_text": query, "page_number": 0, "chunk_order": 0}]
+        )
 
         if not query_chunks:
-            logging.warning("Failed to generate query embedding, falling back to lexical search")
+            logging.warning(
+                "Failed to generate query embedding, falling back to lexical search"
+            )
             # Fallback to lexical search only
             lexical_results = lexical_search(db, query, limit=top_k, book_id=book_id)
             chunk_ids = [chunk_id for chunk_id, _ in lexical_results]
         else:
-            query_embedding = query_chunks[0]['embedding']
+            query_embedding = query_chunks[0]["embedding"]
 
             # Perform parallel searches
-            lexical_results = lexical_search(db, query, limit=top_k * 2, book_id=book_id)
-            vector_results = vector_search(query_embedding, limit=top_k * 2, book_id=book_id)
+            lexical_results = lexical_search(
+                db, query, limit=top_k * 2, book_id=book_id
+            )
+            vector_results = vector_search(
+                query_embedding, limit=top_k * 2, book_id=book_id
+            )
 
             # Combine results using RRF
             fused_results = reciprocal_rank_fusion(lexical_results, vector_results)
@@ -726,9 +782,7 @@ def hybrid_retrieve(db: Session, query: str, top_k: int = 10, book_id: int = Non
 
         # Retrieve full Chunk objects
         if chunk_ids:
-            chunks = db.query(models.Chunk)\
-                .filter(models.Chunk.id.in_(chunk_ids))\
-                .all()
+            chunks = db.query(models.Chunk).filter(models.Chunk.id.in_(chunk_ids)).all()
 
             # Sort chunks to match the order from search results
             chunk_order = {chunk_id: i for i, chunk_id in enumerate(chunk_ids)}
@@ -741,5 +795,7 @@ def hybrid_retrieve(db: Session, query: str, top_k: int = 10, book_id: int = Non
             return []
 
     except Exception as e:
-        logging.error(f"Failed to perform hybrid retrieval for query '{query}': {str(e)}")
+        logging.error(
+            f"Failed to perform hybrid retrieval for query '{query}': {str(e)}"
+        )
         return []

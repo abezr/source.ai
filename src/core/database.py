@@ -8,7 +8,7 @@ SQLALCHEMY_DATABASE_URL = "sqlite:///./data/database/hbi.db"
 
 engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    connect_args={"check_same_thread": False}  # Needed for SQLite
+    connect_args={"check_same_thread": False},  # Needed for SQLite
 )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -37,35 +37,43 @@ def create_fts5_tables():
         with engine.connect() as conn:
             # Create FTS5 virtual table for chunks
             # This allows efficient full-text search on chunk_text
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
                     chunk_text,
                     content='chunks',
                     content_rowid='id'
                 )
-            """))
+            """)
+            )
 
             # Create triggers to keep FTS table in sync with main table
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE TRIGGER IF NOT EXISTS chunks_fts_insert AFTER INSERT ON chunks
                 BEGIN
                     INSERT INTO chunks_fts(rowid, chunk_text) VALUES (new.id, new.chunk_text);
                 END
-            """))
+            """)
+            )
 
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE TRIGGER IF NOT EXISTS chunks_fts_delete AFTER DELETE ON chunks
                 BEGIN
                     DELETE FROM chunks_fts WHERE rowid = old.id;
                 END
-            """))
+            """)
+            )
 
-            conn.execute(text("""
+            conn.execute(
+                text("""
                 CREATE TRIGGER IF NOT EXISTS chunks_fts_update AFTER UPDATE ON chunks
                 BEGIN
                     UPDATE chunks_fts SET chunk_text = new.chunk_text WHERE rowid = new.id;
                 END
-            """))
+            """)
+            )
 
             conn.commit()
             logging.info("Successfully created FTS5 tables and triggers")
