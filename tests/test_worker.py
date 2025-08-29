@@ -4,9 +4,7 @@ Tests the arq worker functions, configuration, and error handling.
 """
 
 import pytest
-import pytest_asyncio
 from unittest.mock import Mock, patch, AsyncMock
-from pathlib import Path
 import tempfile
 import os
 
@@ -109,7 +107,7 @@ class TestIndexTextExtraction:
     def test_extract_index_text_single_page(self):
         """Test extracting text from a single index page."""
         full_text = "Page 1 content\n\nPage 2 content\n\nPage 3 content\n\nIndex: Apple, Banana"
-        index_pages = [3]
+        index_pages = [4]  # Index is on page 4 (1-indexed)
 
         result = _extract_index_text_from_pages(full_text, index_pages)
         assert "Index: Apple, Banana" in result
@@ -217,7 +215,6 @@ class TestProcessBookFileArq:
     async def test_process_book_file_final_retry_dlq(self):
         """Test that final retry moves job to DLQ."""
         ctx = {"job_try": 3, "max_tries": 3}
-        mock_redis = AsyncMock()
 
         with patch("src.core.worker._detect_file_type", return_value="txt"):
             with patch("src.core.worker.move_to_dlq") as mock_move_to_dlq:
@@ -231,7 +228,6 @@ class TestProcessBookFileArq:
     async def test_process_book_file_non_final_retry(self):
         """Test that non-final retry doesn't move to DLQ."""
         ctx = {"job_try": 2, "max_tries": 3}
-        mock_redis = AsyncMock()
 
         with patch("src.core.worker._detect_file_type", return_value="txt"):
             with patch("src.core.worker.move_to_dlq") as mock_move_to_dlq:
@@ -255,6 +251,7 @@ class TestProcessBookFileArq:
                     patch("src.agents.parser.identify_index_pages", return_value=[]),
                     patch("src.core.crud.process_book_chunks_and_embeddings", return_value=True),
                     patch("src.core.worker.SessionLocal") as mock_session,
+                    patch("os.path.exists", return_value=True),  # Mock file existence check
                 ):
                     mock_db = Mock()
                     mock_session.return_value = mock_db
@@ -265,7 +262,10 @@ class TestProcessBookFileArq:
                     mock_db.close.assert_called_once()
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
     @pytest.mark.asyncio
     async def test_process_book_file_djvu_success_path(self):
@@ -284,13 +284,19 @@ class TestProcessBookFileArq:
                     mock_db = Mock()
                     mock_session.return_value = mock_db
 
-                    result = await process_book_file_arq(ctx, 456, f.name)
+                    # Mock the subprocess.run call to avoid djvutxt dependency
+                    with patch("subprocess.run") as mock_subprocess:
+                        mock_subprocess.return_value = Mock(stdout="Test DjVu content", stderr="")
+                        result = await process_book_file_arq(ctx, 456, f.name)
 
-                    assert "Successfully processed book 456" in result
-                    mock_db.close.assert_called_once()
+                        assert "Successfully processed book 456" in result
+                        mock_db.close.assert_called_once()
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
     @pytest.mark.asyncio
     async def test_process_book_file_empty_text_handling(self):
@@ -306,6 +312,7 @@ class TestProcessBookFileArq:
                     patch("src.agents.parser.identify_index_pages", return_value=[]),
                     patch("src.core.crud.process_book_chunks_and_embeddings", return_value=True),
                     patch("src.core.worker.SessionLocal") as mock_session,
+                    patch("os.path.exists", return_value=True),  # Mock file existence check
                 ):
                     mock_db = Mock()
                     mock_session.return_value = mock_db
@@ -315,7 +322,10 @@ class TestProcessBookFileArq:
                     assert "Successfully processed book 789" in result
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
     @pytest.mark.asyncio
     async def test_process_book_file_chunking_failure(self):
@@ -331,6 +341,7 @@ class TestProcessBookFileArq:
                     patch("src.agents.parser.identify_index_pages", return_value=[]),
                     patch("src.core.crud.process_book_chunks_and_embeddings", return_value=False),  # Failure
                     patch("src.core.worker.SessionLocal") as mock_session,
+                    patch("os.path.exists", return_value=True),  # Mock file existence check
                 ):
                     mock_db = Mock()
                     mock_session.return_value = mock_db
@@ -339,7 +350,10 @@ class TestProcessBookFileArq:
                         await process_book_file_arq(ctx, 999, f.name)
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
 
 class TestWorkerConfiguration:
@@ -365,4 +379,8 @@ class TestWorkerConfiguration:
         """Test that worker instance is properly configured."""
         from arq.worker import Worker
         assert isinstance(worker, Worker)
-        assert worker.functions == functions
+        # Worker.functions returns a dict mapping function names to function objects
+        # So we check that our functions are present in the worker's function registry
+        assert len(worker.functions) == len(functions)
+        for func in functions:
+            assert func.__name__ in worker.functions

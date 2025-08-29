@@ -7,7 +7,7 @@ import pytest
 import tempfile
 import os
 import json
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import patch, MagicMock
 import sqlite3
 
 from src.core.vector_store import VectorStore, get_vector_store
@@ -19,19 +19,28 @@ class TestVectorStoreInitialization:
     def test_init_with_default_path(self):
         """Test initialization with default database path."""
         with patch("src.core.vector_store.SQLALCHEMY_DATABASE_URL", "sqlite:///./test.db"):
-            store = VectorStore()
-            assert store.db_path == "./test.db"
+            with patch("sqlite3.connect") as mock_connect:
+                mock_conn = MagicMock()
+                mock_connect.return_value.__enter__.return_value = mock_conn
+                store = VectorStore()
+                assert store.db_path == "./test.db"
 
     def test_init_with_custom_path(self):
         """Test initialization with custom database path."""
-        store = VectorStore(db_path="/custom/path.db")
-        assert store.db_path == "/custom/path.db"
+        with patch("sqlite3.connect") as mock_connect:
+            mock_conn = MagicMock()
+            mock_connect.return_value.__enter__.return_value = mock_conn
+            store = VectorStore(db_path="/custom/path.db")
+            assert store.db_path == "/custom/path.db"
 
     def test_init_with_sqlalchemy_url(self):
         """Test initialization with SQLAlchemy URL parsing."""
         with patch("src.core.vector_store.SQLALCHEMY_DATABASE_URL", "sqlite:///./data/test.db"):
-            store = VectorStore()
-            assert store.db_path == "./data/test.db"
+            with patch("sqlite3.connect") as mock_connect:
+                mock_conn = MagicMock()
+                mock_connect.return_value.__enter__.return_value = mock_conn
+                store = VectorStore()
+                assert store.db_path == "./data/test.db"
 
     def test_init_creates_tables(self):
         """Test that initialization creates vector tables."""
@@ -41,7 +50,7 @@ class TestVectorStoreInitialization:
                     mock_conn = MagicMock()
                     mock_connect.return_value.__enter__.return_value = mock_conn
 
-                    store = VectorStore(db_path=f.name)
+                    VectorStore(db_path=f.name)
 
                     # Verify sqlite-vec extension was loaded
                     mock_conn.enable_load_extension.assert_called_with(True)
@@ -60,7 +69,10 @@ class TestVectorStoreInitialization:
                     assert regular_table_sql, "Regular table creation SQL not found"
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
     def test_init_handles_sqlite_extension_error(self):
         """Test handling of sqlite-vec extension loading errors."""
@@ -75,7 +87,10 @@ class TestVectorStoreInitialization:
                         VectorStore(db_path=f.name)
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
 
 class TestEmbeddingStorage:
@@ -99,7 +114,10 @@ class TestEmbeddingStorage:
                     mock_conn.commit.assert_called()
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
     def test_store_embedding_database_error(self):
         """Test handling of database errors during embedding storage."""
@@ -107,7 +125,15 @@ class TestEmbeddingStorage:
             try:
                 with patch("sqlite3.connect") as mock_connect:
                     mock_conn = MagicMock()
-                    mock_conn.execute.side_effect = sqlite3.Error("Database error")
+                    # Make execute fail only on actual INSERT operations, not on table creation
+                    def selective_side_effect(*args, **kwargs):
+                        if args and len(args) > 0:
+                            sql = args[0]
+                            if "INSERT" in sql and "chunk_embeddings" in sql:
+                                raise sqlite3.Error("Database error")
+                        return MagicMock()
+
+                    mock_conn.execute.side_effect = selective_side_effect
                     mock_connect.return_value.__enter__.return_value = mock_conn
 
                     store = VectorStore(db_path=f.name)
@@ -118,7 +144,10 @@ class TestEmbeddingStorage:
                     assert result is False
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
     def test_store_embedding_json_serialization(self):
         """Test that embeddings are properly JSON serialized."""
@@ -135,21 +164,36 @@ class TestEmbeddingStorage:
 
                     # Check that JSON serialization was called
                     execute_calls = mock_conn.execute.call_args_list
-                    json_embedding = None
-                    for call in execute_calls:
-                        if len(call[0]) > 1 and isinstance(call[0][1], str):
-                            try:
-                                parsed = json.loads(call[0][1])
-                                if parsed == embedding:
-                                    json_embedding = call[0][1]
-                                    break
-                            except (json.JSONDecodeError, TypeError):
-                                continue
 
-                    assert json_embedding is not None, "Embedding was not JSON serialized"
+                    # Look for the INSERT statement that stores the JSON embedding
+                    json_found = False
+                    for call in execute_calls:
+                        if len(call[0]) >= 2:
+                            sql = call[0][0]
+                            params = call[0][1:]
+                            if "INSERT" in sql and "chunk_embeddings" in sql:
+                                # Check if any parameter is a JSON string containing our embedding
+                                for param in params:
+                                    if isinstance(param, str):
+                                        try:
+                                            parsed = json.loads(param)
+                                            if isinstance(parsed, list) and len(parsed) == len(embedding):
+                                                # Check if the values match (approximately for floats)
+                                                if all(abs(a - b) < 1e-10 for a, b in zip(parsed, embedding)):
+                                                    json_found = True
+                                                    break
+                                        except (json.JSONDecodeError, TypeError):
+                                            continue
+                                if json_found:
+                                    break
+
+                    assert json_found, "JSON serialization of embedding not found in database calls"
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
 
 class TestSimilaritySearch:
@@ -176,7 +220,10 @@ class TestSimilaritySearch:
                     mock_conn.load_extension.assert_called_with("sqlite_vec")
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
     def test_search_similar_empty_results(self):
         """Test similarity search with no results."""
@@ -197,7 +244,10 @@ class TestSimilaritySearch:
                     assert results == []
 
             finally:
-                os.unlink(f.name)
+                try:
+                    os.unlink(f.name)
+                except (OSError, PermissionError):
+                    pass  # File may be locked on Windows
 
     def test_search_similar_database_error(self):
         """Test handling of database errors during similarity search."""

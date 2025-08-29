@@ -5,8 +5,7 @@ Tests Gemini API interactions, prompt building, and error handling.
 
 import pytest
 import json
-from unittest.mock import Mock, patch, MagicMock
-from pydantic import ValidationError
+from unittest.mock import patch, MagicMock
 
 from src.core.llm_client import LLMClient, get_llm_client
 
@@ -164,7 +163,7 @@ class TestAnswerValidation:
             mock_instance = MagicMock()
             mock_answer.return_value = mock_instance
 
-            result = client._validate_answer_response(answer_data)
+            client._validate_answer_response(answer_data)
 
             # Should have added default values
             call_args = mock_answer.call_args[1]
@@ -185,7 +184,7 @@ class TestAnswerValidation:
             mock_instance = MagicMock()
             mock_answer.return_value = mock_instance
 
-            result = client._validate_answer_response(answer_data)
+            client._validate_answer_response(answer_data)
 
             # Should have corrected confidence score
             call_args = mock_answer.call_args[1]
