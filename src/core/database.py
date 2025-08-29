@@ -3,6 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.orm import Session
 import logging
+import os
 
 SQLALCHEMY_DATABASE_URL = "sqlite:///./data/database/hbi.db"
 
@@ -89,6 +90,13 @@ def initialize_database():
     Call this function once during application startup.
     """
     try:
+        # Ensure database directory exists
+        db_path = "./data/database/hbi.db"
+        db_dir = os.path.dirname(db_path)
+        if db_dir and not os.path.exists(db_dir):
+            os.makedirs(db_dir, exist_ok=True)
+            logging.info(f"Created database directory: {db_dir}")
+
         # Create regular SQLAlchemy tables
         Base.metadata.create_all(bind=engine)
 

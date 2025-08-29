@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 import logging
 import os
+from contextlib import asynccontextmanager
 from arq import ArqRedis
 from arq.connections import RedisSettings
 from .core.database import get_db, initialize_database
@@ -10,6 +11,23 @@ from .core import models, schemas, crud
 from .core.object_store import get_object_store_client
 from .core.llm_client import get_llm_client
 from .core.config_store import get_rag_config, update_rag_config
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Handle application startup and shutdown events."""
+    # Startup
+    try:
+        initialize_database()
+        logging.info("Database initialized successfully on startup")
+    except Exception as e:
+        logging.error(f"Failed to initialize database on startup: {str(e)}")
+        raise
+
+    yield
+
+    # Shutdown (if needed in the future)
+    pass
 
 
 def get_redis_client() -> ArqRedis:
@@ -23,6 +41,7 @@ app = FastAPI(
     title="Hybrid Book Index (HBI) System",
     description="API for indexing and querying book content.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 
@@ -305,7 +324,3 @@ def _format_chunks_for_llm(chunks: List[models.Chunk]) -> str:
         )
 
     return "\n".join(context_parts)
-
-
-# Initialize database with tables and FTS5 virtual tables
-initialize_database()
