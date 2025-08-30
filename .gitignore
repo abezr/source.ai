@@ -63,3 +63,8 @@ data/langfuse-db/*
 IDE settings
 .idea/
 .vscode/
+Terraform
+.terraform/
+*.tfstate*
+*.tfvars
+!terraform/terraform.tfvars

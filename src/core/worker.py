@@ -15,6 +15,65 @@ from arq import ArqRedis
 from arq.connections import RedisSettings
 from arq.worker import Worker
 
+# OpenTelemetry imports for worker metrics
+from opentelemetry import metrics
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
+from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
+
+# Worker metrics
+worker_meter = metrics.get_meter("hbi_worker")
+tasks_processed = worker_meter.create_counter(
+    name="hbi_worker_tasks_processed_total",
+    description="Total number of tasks processed by the worker",
+    unit="1",
+)
+tasks_failed = worker_meter.create_counter(
+    name="hbi_worker_tasks_failed_total",
+    description="Total number of tasks that failed",
+    unit="1",
+)
+dlq_size = worker_meter.create_gauge(
+    name="hbi_worker_dlq_size",
+    description="Current size of the Dead Letter Queue",
+    unit="1",
+)
+queue_depth = worker_meter.create_gauge(
+    name="hbi_worker_queue_depth",
+    description="Current depth of the task queue",
+    unit="1",
+)
+
+
+class MetricsHandler(BaseHTTPRequestHandler):
+    """HTTP handler for serving Prometheus metrics."""
+
+    def do_GET(self):
+        if self.path == "/metrics":
+            self.send_response(200)
+            self.send_header("Content-Type", CONTENT_TYPE_LATEST)
+            self.end_headers()
+            self.wfile.write(generate_latest())
+        else:
+            self.send_response(404)
+            self.end_headers()
+
+    def log_message(self, format, *args):
+        # Suppress default HTTP server logs
+        pass
+
+
+def start_metrics_server(port=8000):
+    """Start a simple HTTP server to expose metrics."""
+    server = HTTPServer(("0.0.0.0", port), MetricsHandler)
+    logging.info(f"Starting metrics server on port {port}")
+    server.serve_forever()
+
+
+# Start metrics server in a separate thread
+metrics_thread = threading.Thread(target=start_metrics_server, daemon=True)
+metrics_thread.start()
+
 try:
     from pydantic import BaseSettings
 except ImportError:
@@ -193,10 +252,12 @@ async def process_book_file_arq(
             db.close()
 
         logging.info(f"Completed arq processing for book {book_id}")
+        tasks_processed.add(1, {"status": "success"})
         return f"Successfully processed book {book_id}"
 
     except Exception as e:
         logging.error(f"Arq processing failed for book {book_id}: {str(e)}")
+        tasks_failed.add(1, {"status": "failed"})
 
         # Check if this is the final retry attempt
         job_try = ctx.get("job_try", 1)
@@ -235,6 +296,11 @@ async def move_to_dlq(
     }
 
     await redis.lpush(dlq_key, str(dlq_entry))
+
+    # Update DLQ size metric
+    dlq_length = await redis.llen(dlq_key)
+    dlq_size.set(dlq_length)
+
     logging.info(f"Moved failed job for book {book_id} to DLQ")
 
 
@@ -286,6 +352,14 @@ def _extract_index_text_from_pages(full_text: str, index_pages: list) -> str:
 
 async def health_check():
     """Health check function for the worker."""
+    # Update queue depth metric
+    try:
+        redis = ArqRedis(redis_settings)
+        queue_length = await redis.llen("arq:queue")
+        queue_depth.set(queue_length)
+    except Exception as e:
+        logging.warning(f"Failed to get queue depth: {str(e)}")
+
     return {"status": "healthy", "worker": "arq"}
 
 

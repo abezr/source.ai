@@ -17,6 +17,7 @@ fastembed
 opentelemetry-api
 opentelemetry-sdk
 opentelemetry-instrumentation-fastapi
+opentelemetry-exporter-prometheus
 langfuse
 boto3
 google-generativeai
@@ -26,3 +27,5 @@ datasets
 nltk
 arq
 redis
+locust
+reportlab

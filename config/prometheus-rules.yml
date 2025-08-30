@@ -1,0 +1,20 @@
+groups:
+  - name: hbi_alerts
+    rules:
+      - alert: DLQSizeHigh
+        expr: hbi_worker_dlq_size > 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High DLQ Size"
+          description: "Dead Letter Queue size is {{ $value }}, which is above the threshold of 5."
+
+      - alert: APIErrorRateHigh
+        expr: rate(hbi_errors_total{endpoint="/query"}[5m]) / rate(hbi_requests_total{endpoint="/query"}[5m]) > 0.02
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API Error Rate"
+          description: "Query endpoint error rate is {{ $value | printf \"%.2f\" }}%, which is above the threshold of 2%."

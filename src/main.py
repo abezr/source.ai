@@ -10,7 +10,29 @@ from .core.database import get_db, initialize_database
 from .core import models, schemas, crud
 from .core.object_store import get_object_store_client
 from .core.llm_client import get_llm_client
+from .core.llm_router import get_llm_router
 from .core.config_store import get_rag_config, update_rag_config
+
+# OpenTelemetry imports
+from opentelemetry import metrics
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from prometheus_client import generate_latest
+
+# Custom metrics
+meter = metrics.get_meter("hbi_app")
+request_count = meter.create_counter(
+    name="hbi_requests_total", description="Total number of requests", unit="1"
+)
+request_duration = meter.create_histogram(
+    name="hbi_request_duration_seconds",
+    description="Request duration in seconds",
+    unit="s",
+)
+error_count = meter.create_counter(
+    name="hbi_errors_total", description="Total number of errors", unit="1"
+)
 
 
 @asynccontextmanager
@@ -20,8 +42,18 @@ async def lifespan(app: FastAPI):
     try:
         initialize_database()
         logging.info("Database initialized successfully on startup")
+
+        # Initialize OpenTelemetry metrics
+        prometheus_reader = PrometheusMetricReader()
+        meter_provider = MeterProvider(metric_readers=[prometheus_reader])
+        metrics.set_meter_provider(meter_provider)
+
+        # Instrument FastAPI
+        FastAPIInstrumentor.instrument_app(app)
+
+        logging.info("OpenTelemetry instrumentation initialized")
     except Exception as e:
-        logging.error(f"Failed to initialize database on startup: {str(e)}")
+        logging.error(f"Failed to initialize database or metrics on startup: {str(e)}")
         raise
 
     yield
@@ -37,11 +69,21 @@ def get_redis_client() -> ArqRedis:
     return ArqRedis(redis_settings)
 
 
+from fastapi.middleware.cors import CORSMiddleware
+
 app = FastAPI(
     title="Hybrid Book Index (HBI) System",
     description="API for indexing and querying book content.",
     version="0.1.0",
     lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3002"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -56,6 +98,14 @@ async def health_check(background_tasks: BackgroundTasks):
     return {"status": "ok", "background_tasks": "enabled"}
 
 
+@app.get("/metrics", tags=["Monitoring"])
+async def metrics():
+    """
+    Prometheus metrics endpoint for scraping application metrics.
+    """
+    return generate_latest()
+
+
 def log_health_check_request():
     """
     Simple background task that logs when health check is called.
@@ -65,6 +115,19 @@ def log_health_check_request():
 
     logging.info("Health check triggered a background task!")
     print("Health check triggered a background task!")
+
+
+@app.get("/stats", tags=["Monitoring"])
+async def get_stats(db: Session = Depends(get_db)):
+    """
+    Get system statistics.
+
+    Returns:
+        Dict with total_books_indexed and jobs_in_queue
+    """
+    total_books = crud.get_books_count(db)
+    jobs_in_queue = 0  # Placeholder
+    return {"total_books_indexed": total_books, "jobs_in_queue": jobs_in_queue}
 
 
 @app.get("/config", response_model=schemas.RAGConfig, tags=["Configuration"])
@@ -166,16 +229,36 @@ async def upload_book_file(
     The file will be stored in MinIO and the book's source_path will be updated.
     Background processing will be handled by Redis/arq workers.
     """
-    # Validate that the book exists
-    db_book = crud.get_book(db, book_id=book_id)
-    if db_book is None:
-        raise HTTPException(status_code=404, detail="Book not found")
+    import time
 
-    # Validate file type (basic check)
-    if not file.filename.lower().endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+    start_time = time.time()
 
     try:
+        request_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})
+
+        # Validate that the book exists
+        db_book = crud.get_book(db, book_id=book_id)
+        if db_book is None:
+            error_count.add(
+                1, {"endpoint": "/books/{book_id}/upload", "method": "POST"}
+            )
+            request_duration.record(
+                time.time() - start_time,
+                {"endpoint": "/books/{book_id}/upload", "status": "error"},
+            )
+            raise HTTPException(status_code=404, detail="Book not found")
+
+        # Validate file type (basic check)
+        if not file.filename.lower().endswith(".pdf"):
+            error_count.add(
+                1, {"endpoint": "/books/{book_id}/upload", "method": "POST"}
+            )
+            request_duration.record(
+                time.time() - start_time,
+                {"endpoint": "/books/{book_id}/upload", "status": "error"},
+            )
+            raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
         # Get object store client
         object_store = get_object_store_client()
 
@@ -192,6 +275,13 @@ async def upload_book_file(
         # Update book's source_path in database
         updated_book = crud.update_book_source_path(db, book_id, object_name)
         if updated_book is None:
+            error_count.add(
+                1, {"endpoint": "/books/{book_id}/upload", "method": "POST"}
+            )
+            request_duration.record(
+                time.time() - start_time,
+                {"endpoint": "/books/{book_id}/upload", "status": "error"},
+            )
             raise HTTPException(status_code=500, detail="Failed to update book record")
 
         # Enqueue background processing job with arq
@@ -201,9 +291,20 @@ async def upload_book_file(
         logging.info(
             f"Enqueued background processing job for book {book_id}, file: {object_name}"
         )
+        request_duration.record(
+            time.time() - start_time,
+            {"endpoint": "/books/{book_id}/upload", "status": "success"},
+        )
         return updated_book
 
+    except HTTPException:
+        raise
     except Exception as e:
+        error_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})
+        request_duration.record(
+            time.time() - start_time,
+            {"endpoint": "/books/{book_id}/upload", "status": "error"},
+        )
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 
 
@@ -244,7 +345,12 @@ async def query_books(request: schemas.QueryRequest, db: Session = Depends(get_d
 
     Returns a structured answer with citations or a fallback message.
     """
+    import time
+
+    start_time = time.time()
+
     try:
+        request_count.add(1, {"endpoint": "/query", "method": "POST"})
         logging.info(
             f"Processing query: '{request.query}' (book_id: {request.book_id}, top_k: {request.top_k})"
         )
@@ -267,6 +373,9 @@ async def query_books(request: schemas.QueryRequest, db: Session = Depends(get_d
             logging.warning(
                 f"Retrieval gate failed: only {len(retrieved_chunks)} chunks found (minimum: {config.min_chunks})"
             )
+            request_duration.record(
+                time.time() - start_time, {"endpoint": "/query", "status": "fallback"}
+            )
             return schemas.QueryResponse(fallback_message=fallback_msg)
 
         logging.info(f"Retrieval gate passed: {len(retrieved_chunks)} chunks retrieved")
@@ -276,10 +385,9 @@ async def query_books(request: schemas.QueryRequest, db: Session = Depends(get_d
 
         # Step 4: Generation Phase
         logging.info("Step 4: Generating grounded answer")
-        llm_client = get_llm_client()
-        answer = llm_client.generate_grounded_answer(
-            query=request.query, context=context
-        )
+        llm_router = get_llm_router()
+        provider = llm_router.get_provider_for_role("rag_generator")
+        answer = provider.generate_grounded_answer(query=request.query, context=context)
 
         # Step 5: Generation Gate
         if answer.confidence_score < config.confidence_threshold:
@@ -287,19 +395,29 @@ async def query_books(request: schemas.QueryRequest, db: Session = Depends(get_d
             logging.warning(
                 f"Generation gate failed: confidence {answer.confidence_score:.2f} below threshold {config.confidence_threshold}"
             )
+            request_duration.record(
+                time.time() - start_time, {"endpoint": "/query", "status": "fallback"}
+            )
             return schemas.QueryResponse(fallback_message=fallback_msg)
 
         # Step 6: Success - return structured answer
         logging.info(
             f"Generation gate passed: confidence {answer.confidence_score:.2f}, returning structured answer"
         )
+        request_duration.record(
+            time.time() - start_time, {"endpoint": "/query", "status": "success"}
+        )
         return schemas.QueryResponse(answer=answer)
 
     except Exception as e:
+        error_count.add(1, {"endpoint": "/query", "method": "POST"})
         error_msg = (
             "I encountered an error while processing your query. Please try again."
         )
         logging.error(f"Query processing failed: {str(e)}")
+        request_duration.record(
+            time.time() - start_time, {"endpoint": "/query", "status": "error"}
+        )
         return schemas.QueryResponse(fallback_message=error_msg)
 
 

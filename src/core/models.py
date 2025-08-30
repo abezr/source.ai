@@ -40,3 +40,22 @@ class Chunk(Base):
 
     # Relationship to book
     book = relationship("Book", back_populates="chunks")
+
+
+class LLMConfiguration(Base):
+    """
+    SQLAlchemy ORM model for storing LLM provider configurations.
+    Maps roles to specific providers and models for flexible routing.
+    """
+
+    __tablename__ = "llm_configurations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    role_name = Column(
+        String, nullable=False, index=True
+    )  # e.g., "rag_generator", "parser"
+    provider_name = Column(String, nullable=False)  # e.g., "gemini", "ollama"
+    model_name = Column(String, nullable=False)  # e.g., "gemini-2.5-pro", "llama2"
+    is_active = Column(
+        Integer, default=1, nullable=False
+    )  # 1 for active, 0 for inactive

@@ -47,7 +47,17 @@ services:
       - "9090:9090"
     volumes:
       - ./config/prometheus.yml:/etc/prometheus/prometheus.yml
+      - ./config/prometheus-rules.yml:/etc/prometheus/prometheus-rules.yml
     command: '--config.file=/etc/prometheus/prometheus.yml'
+
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: hbi_alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./config/alertmanager.yml:/etc/alertmanager/alertmanager.yml
+    command: '--config.file=/etc/alertmanager/alertmanager.yml'
 
   loki:
     image: grafana/loki:latest
@@ -63,6 +73,8 @@ services:
       - "3000:3000"
     volumes:
       - ./config/grafana-datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml
+      - ./config/grafana-dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml
+      - ./dashboards:/etc/grafana/provisioning/dashboards
     depends_on:
       - prometheus
       - loki
@@ -130,6 +142,25 @@ services:
       - object_store
       - graph_db
     command: arq src.core.worker.WorkerSettings
+
+  portal:
+    build: ./portal
+    container_name: hbi_portal
+    ports:
+      - "3002:3002"
+    depends_on:
+      - app
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: hbi_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./data/ollama:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    command: serve
 
 volumes:
   langfuse-db:

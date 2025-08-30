@@ -58,6 +58,19 @@ def get_books(db: Session, skip: int = 0, limit: int = 100) -> list[models.Book]
     return db.query(models.Book).offset(skip).limit(limit).all()
 
 
+def get_books_count(db: Session) -> int:
+    """
+    Get the total count of books in the database.
+
+    Args:
+        db: Database session
+
+    Returns:
+        Total number of books
+    """
+    return db.query(models.Book).count()
+
+
 def create_book_toc_graph(book_id: int, toc_nodes: List[schemas.TOCNode]) -> bool:
     """
     Create a hierarchical graph structure in Neo4j for a book's Table of Contents.

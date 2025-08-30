@@ -2,9 +2,14 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
 rule_files:
-  # - "first_rules.yml"
-  # - "second_rules.yml"
+  - "prometheus-rules.yml"
 
 scrape_configs:
   - job_name: 'prometheus'
@@ -14,6 +19,7 @@ scrape_configs:
   - job_name: 'hbi_app'
     static_configs:
       - targets: ['app:8000']
+    metrics_path: '/metrics'
 
   - job_name: 'grafana'
     static_configs:
@@ -22,3 +28,8 @@ scrape_configs:
   - job_name: 'loki'
     static_configs:
       - targets: ['loki:3100']
+
+  - job_name: 'hbi_worker'
+    static_configs:
+      - targets: ['worker:8000']
+    metrics_path: '/metrics'

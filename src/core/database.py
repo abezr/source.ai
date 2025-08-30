@@ -117,6 +117,15 @@ def initialize_database():
         # Create FTS5 virtual tables
         create_fts5_tables()
 
+        # Seed LLM configurations
+        try:
+            from .seed_llm_configurations import initialize_llm_configurations
+
+            initialize_llm_configurations()
+            logging.info("LLM configurations seeded successfully")
+        except Exception as e:
+            logging.warning(f"Failed to seed LLM configurations: {str(e)}")
+
         logging.info("Database initialization completed successfully")
 
     except Exception as e:

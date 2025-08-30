@@ -1,0 +1,193 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "HBI Overview",
+    "tags": ["hbi", "observability"],
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "API Health - Request Latency (p95)",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(hbi_request_duration_seconds_bucket{endpoint=\"/query\"}[5m]))",
+            "legendFormat": "Query p95",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.95, rate(hbi_request_duration_seconds_bucket{endpoint=\"/books/{book_id}/upload\"}[5m]))",
+            "legendFormat": "Upload p95",
+            "refId": "B"
+          }
+        ],
+        "yAxes": [
+          {
+            "unit": "seconds",
+            "label": "Latency"
+          },
+          {
+            "unit": "short"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "API Health - Error Rate %",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(hbi_errors_total{endpoint=\"/query\"}[5m]) / rate(hbi_requests_total{endpoint=\"/query\"}[5m]) * 100",
+            "legendFormat": "Query Error Rate",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(hbi_errors_total{endpoint=\"/books/{book_id}/upload\"}[5m]) / rate(hbi_requests_total{endpoint=\"/books/{book_id}/upload\"}[5m]) * 100",
+            "legendFormat": "Upload Error Rate",
+            "refId": "B"
+          }
+        ],
+        "yAxes": [
+          {
+            "unit": "percent",
+            "label": "Error Rate %"
+          },
+          {
+            "unit": "short"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Worker Health - Queue Depth",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "hbi_worker_queue_depth",
+            "legendFormat": "Queue Depth",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "unit": "short",
+            "label": "Tasks"
+          },
+          {
+            "unit": "short"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Worker Health - Tasks Processed",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(hbi_worker_tasks_processed_total[5m])",
+            "legendFormat": "Tasks Processed/min",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "unit": "ops",
+            "label": "Tasks/min"
+          },
+          {
+            "unit": "short"
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Worker Health - DLQ Size",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "hbi_worker_dlq_size",
+            "legendFormat": "DLQ Size",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "unit": "short",
+            "label": "Failed Tasks"
+          },
+          {
+            "unit": "short"
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "RAG Quality - RAGAS Scores",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "ragas_score",
+            "legendFormat": "RAGAS Score",
+            "refId": "A"
+          }
+        ],
+        "yAxes": [
+          {
+            "unit": "percent",
+            "label": "Score"
+          },
+          {
+            "unit": "short"
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Business Metrics - Books Ingested",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "hbi_books_ingested_total",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Business Metrics - Queries Processed",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "hbi_requests_total{endpoint=\"/query\"}",
+            "refId": "A"
+          }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      }
+    ],
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "timepicker": {},
+    "templating": {
+      "list": []
+    },
+    "annotations": {
+      "list": []
+    },
+    "refresh": "30s",
+    "schemaVersion": 27,
+    "version": 0,
+    "links": []
+  }
+}
