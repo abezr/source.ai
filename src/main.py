@@ -235,14 +235,24 @@ async def upload_book_file(
         # Validate that the book exists
         db_book = crud.get_book(db, book_id=book_id)
         if db_book is None:
-            error_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})
-            request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "error"})
+            error_count.add(
+                1, {"endpoint": "/books/{book_id}/upload", "method": "POST"}
+            )
+            request_duration.record(
+                time.time() - start_time,
+                {"endpoint": "/books/{book_id}/upload", "status": "error"},
+            )
             raise HTTPException(status_code=404, detail="Book not found")
 
         # Validate file type (basic check)
         if not file.filename.lower().endswith(".pdf"):
-            error_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})
-            request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "error"})
+            error_count.add(
+                1, {"endpoint": "/books/{book_id}/upload", "method": "POST"}
+            )
+            request_duration.record(
+                time.time() - start_time,
+                {"endpoint": "/books/{book_id}/upload", "status": "error"},
+            )
             raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
         # Get object store client
@@ -261,8 +271,13 @@ async def upload_book_file(
         # Update book's source_path in database
         updated_book = crud.update_book_source_path(db, book_id, object_name)
         if updated_book is None:
-            error_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})
-            request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "error"})
+            error_count.add(
+                1, {"endpoint": "/books/{book_id}/upload", "method": "POST"}
+            )
+            request_duration.record(
+                time.time() - start_time,
+                {"endpoint": "/books/{book_id}/upload", "status": "error"},
+            )
             raise HTTPException(status_code=500, detail="Failed to update book record")
 
         # Enqueue background processing job with arq
@@ -272,14 +287,20 @@ async def upload_book_file(
         logging.info(
             f"Enqueued background processing job for book {book_id}, file: {object_name}"
         )
-        request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "success"})
+        request_duration.record(
+            time.time() - start_time,
+            {"endpoint": "/books/{book_id}/upload", "status": "success"},
+        )
         return updated_book
 
     except HTTPException:
         raise
     except Exception as e:
         error_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})
-        request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "error"})
+        request_duration.record(
+            time.time() - start_time,
+            {"endpoint": "/books/{book_id}/upload", "status": "error"},
+        )
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 
 
@@ -345,7 +366,9 @@ async def query_books(request: schemas.QueryRequest, db: Session = Depends(get_d
             logging.warning(
                 f"Retrieval gate failed: only {len(retrieved_chunks)} chunks found (minimum: {config.min_chunks})"
             )
-            request_duration.record(time.time() - start_time, {"endpoint": "/query", "status": "fallback"})
+            request_duration.record(
+                time.time() - start_time, {"endpoint": "/query", "status": "fallback"}
+            )
             return schemas.QueryResponse(fallback_message=fallback_msg)
 
         logging.info(f"Retrieval gate passed: {len(retrieved_chunks)} chunks retrieved")
@@ -365,14 +388,18 @@ async def query_books(request: schemas.QueryRequest, db: Session = Depends(get_d
             logging.warning(
                 f"Generation gate failed: confidence {answer.confidence_score:.2f} below threshold {config.confidence_threshold}"
             )
-            request_duration.record(time.time() - start_time, {"endpoint": "/query", "status": "fallback"})
+            request_duration.record(
+                time.time() - start_time, {"endpoint": "/query", "status": "fallback"}
+            )
             return schemas.QueryResponse(fallback_message=fallback_msg)
 
         # Step 6: Success - return structured answer
         logging.info(
             f"Generation gate passed: confidence {answer.confidence_score:.2f}, returning structured answer"
         )
-        request_duration.record(time.time() - start_time, {"endpoint": "/query", "status": "success"})
+        request_duration.record(
+            time.time() - start_time, {"endpoint": "/query", "status": "success"}
+        )
         return schemas.QueryResponse(answer=answer)
 
     except Exception as e:
@@ -381,7 +408,9 @@ async def query_books(request: schemas.QueryRequest, db: Session = Depends(get_d
             "I encountered an error while processing your query. Please try again."
         )
         logging.error(f"Query processing failed: {str(e)}")
-        request_duration.record(time.time() - start_time, {"endpoint": "/query", "status": "error"})
+        request_duration.record(
+            time.time() - start_time, {"endpoint": "/query", "status": "error"}
+        )
         return schemas.QueryResponse(fallback_message=error_msg)
 
 
