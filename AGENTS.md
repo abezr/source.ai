@@ -47,3 +47,56 @@ Every task must follow this sequence. A task is only considered "done" when all 
 - All Python code MUST be formatted with `ruff`. This is enforced by the `/lint` command and in CI.
 - All code must be fully type-hinted.
 - Follow the project structure outlined above. Shared clients (e.g., for databases or LLMs) go in `src/core/`.
+
+## 6. Automatic Quality Assurance & Issue Resolution
+
+**MANDATORY RULE:** After completing any task that involves code changes, you MUST automatically perform the following quality checks and fixes:
+
+### 6.1 Automatic Code Formatting
+- **Always run `ruff format` on all modified files** to ensure consistent code style
+- **Always run `ruff check`** to verify no linting issues remain
+- If formatting issues are found, fix them immediately before considering the task complete
+
+### 6.2 Automatic Testing & Coverage
+- **Always run the full test suite** with coverage: `pytest --cov=src --cov-report=term-missing --cov-report=xml --cov-report=html --cov-fail-under=60`
+- **Verify test coverage meets the 60% minimum requirement**
+- If tests fail due to import errors, missing dependencies, or configuration issues, fix them automatically
+- If tests fail due to unrelated platform-specific issues (e.g., Windows file permissions), document them but don't block task completion
+
+### 6.3 Common Issue Auto-Resolution
+**Automatically fix these common issues without user intervention:**
+
+1. **Import Errors**: If tests fail due to missing imports (like metrics, database connections, etc.), enable/configure the missing components
+2. **Database Initialization**: If tests fail due to uninitialized database, ensure proper database setup in test fixtures
+3. **Configuration Issues**: If tests fail due to missing configuration, ensure proper environment setup
+4. **Mock Setup**: If tests fail due to incorrect mocking, fix the mock implementations
+5. **Code Formatting**: If linting fails due to formatting, automatically reformat the code
+
+### 6.4 Task Completion Criteria
+A task is only considered complete when:
+- ✅ All code changes are implemented
+- ✅ All modified files pass `ruff format` and `ruff check`
+- ✅ All tests pass (or only fail due to documented platform-specific issues)
+- ✅ Test coverage meets or exceeds 60%
+- ✅ No import errors or configuration issues remain
+
+### 6.5 Exception Handling
+- **Platform-specific failures** (Windows file permissions, OS-specific paths) should be documented but not prevent task completion
+- **External service dependencies** (databases, APIs) should be mocked appropriately in tests
+- **Legacy code issues** should be addressed if they block core functionality
+
+### 6.6 Quality Assurance Workflow Integration
+Update the Mandatory Development Workflow (Section 4) to include:
+
+**Enhanced Workflow:**
+1. Task Assignment
+2. Create Branch
+3. Implement Code
+4. Write Tests
+5. **🔄 Automatic Quality Checks:**
+   - Run `ruff format` on all modified files
+   - Run `ruff check` to verify linting
+   - Run full test suite with coverage
+   - Fix any import/configuration issues automatically
+6. Create Pull Request
+7. CI Validation
