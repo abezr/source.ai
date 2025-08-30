@@ -10,6 +10,14 @@ from unittest.mock import patch, MagicMock
 from src.core.llm_client import LLMClient, get_llm_client
 
 
+def mock_get_db():
+    """Mock database generator that can be called multiple times."""
+    mock_db = MagicMock()
+    mock_db.query.return_value.all.return_value = []
+    while True:
+        yield mock_db
+
+
 class TestLLMClientInitialization:
     """Test cases for LLMClient initialization."""
 
@@ -245,16 +253,20 @@ class TestConnectionValidation:
         mock_response.text = "Hello, I'm working!"
         client.client.generate_content.return_value = mock_response
 
-        result = client.validate_connection()
-        assert result is True
+        # Mock the database dependency and query
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            result = client.validate_connection()
+            assert result is True
 
     def test_validate_connection_no_client(self):
         """Test connection validation without client."""
         client = LLMClient()
         client.client = None
 
-        result = client.validate_connection()
-        assert result is False
+        # Mock the database dependency
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            result = client.validate_connection()
+            assert result is False
 
     def test_validate_connection_api_error(self):
         """Test connection validation with API error."""
@@ -262,8 +274,10 @@ class TestConnectionValidation:
         client.client = MagicMock()
         client.client.generate_content.side_effect = Exception("API Error")
 
-        result = client.validate_connection()
-        assert result is False
+        # Mock the database dependency
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            result = client.validate_connection()
+            assert result is False
 
 
 class TestStructuredTOC:
@@ -274,8 +288,10 @@ class TestStructuredTOC:
         client = LLMClient()
         client.client = None
 
-        with pytest.raises(Exception, match="LLM client not initialized"):
-            client.get_structured_toc("test toc text")
+        # Mock the database dependency to avoid database initialization error
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            with pytest.raises(Exception, match="LLM client not initialized"):
+                client.get_structured_toc("test toc text")
 
     def test_get_structured_toc_success(self):
         """Test successful ToC parsing."""
@@ -286,13 +302,15 @@ class TestStructuredTOC:
         mock_response.text = '{"parsed": "toc"}'
         client.client.generate_content.return_value = mock_response
 
-        with patch("json.loads") as mock_json_loads:
-            mock_json_loads.return_value = {"parsed": "toc"}
+        # Mock the database dependency
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            with patch("json.loads") as mock_json_loads:
+                mock_json_loads.return_value = {"parsed": "toc"}
 
-            result = client.get_structured_toc("test toc text")
+                result = client.get_structured_toc("test toc text")
 
-            assert result == {"parsed": "toc"}
-            client.client.generate_content.assert_called_once()
+                assert result == {"parsed": "toc"}
+                client.client.generate_content.assert_called_once()
 
     def test_get_structured_toc_json_error(self):
         """Test ToC parsing with JSON parsing error."""
@@ -303,11 +321,13 @@ class TestStructuredTOC:
         mock_response.text = "invalid json"
         client.client.generate_content.return_value = mock_response
 
-        with patch(
-            "json.loads", side_effect=json.JSONDecodeError("Invalid JSON", "", 0)
-        ):
-            with pytest.raises(Exception, match="Failed to parse LLM response as JSON"):
-                client.get_structured_toc("test toc text")
+        # Mock the database dependency
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            with patch(
+                "json.loads", side_effect=json.JSONDecodeError("Invalid JSON", "", 0)
+            ):
+                with pytest.raises(Exception, match="Failed to parse LLM response as JSON"):
+                    client.get_structured_toc("test toc text")
 
     def test_get_structured_toc_api_error(self):
         """Test ToC parsing with API error."""
@@ -315,8 +335,10 @@ class TestStructuredTOC:
         client.client = MagicMock()
         client.client.generate_content.side_effect = Exception("API Error")
 
-        with pytest.raises(Exception, match="LLM API call failed"):
-            client.get_structured_toc("test toc text")
+        # Mock the database dependency
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            with pytest.raises(Exception, match="LLM API call failed"):
+                client.get_structured_toc("test toc text")
 
 
 class TestStructuredIndex:
@@ -327,8 +349,10 @@ class TestStructuredIndex:
         client = LLMClient()
         client.client = None
 
-        with pytest.raises(Exception, match="LLM client not initialized"):
-            client.get_structured_index("test index text")
+        # Mock the database dependency
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            with pytest.raises(Exception, match="LLM client not initialized"):
+                client.get_structured_index("test index text")
 
     def test_get_structured_index_success(self):
         """Test successful index parsing."""
@@ -339,13 +363,15 @@ class TestStructuredIndex:
         mock_response.text = '{"parsed": "index"}'
         client.client.generate_content.return_value = mock_response
 
-        with patch("json.loads") as mock_json_loads:
-            mock_json_loads.return_value = {"parsed": "index"}
+        # Mock the database dependency
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            with patch("json.loads") as mock_json_loads:
+                mock_json_loads.return_value = {"parsed": "index"}
 
-            result = client.get_structured_index("test index text")
+                result = client.get_structured_index("test index text")
 
-            assert result == {"parsed": "index"}
-            client.client.generate_content.assert_called_once()
+                assert result == {"parsed": "index"}
+                client.client.generate_content.assert_called_once()
 
 
 class TestGroundedAnswerGeneration:
@@ -356,14 +382,16 @@ class TestGroundedAnswerGeneration:
         client = LLMClient()
         client.client = None
 
-        result = client.generate_grounded_answer("test query", "test context")
+        # Mock the database dependency
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            result = client.generate_grounded_answer("test query", "test context")
 
-        assert (
-            result.answer_summary
-            == "I apologize, but the LLM service is currently unavailable. Please try again later."
-        )
-        assert result.confidence_score == 0.0
-        assert result.claims == []
+            assert (
+                result.answer_summary
+                == "I apologize, but the LLM service is currently unavailable. Please try again later."
+            )
+            assert result.confidence_score == 0.0
+            assert result.claims == []
 
     def test_generate_grounded_answer_success(self):
         """Test successful answer generation."""
@@ -376,13 +404,15 @@ class TestGroundedAnswerGeneration:
         )
         client.client.generate_content.return_value = mock_response
 
-        with patch("src.core.schemas.Answer") as mock_answer:
-            mock_instance = MagicMock()
-            mock_answer.return_value = mock_instance
+        # Mock the database dependency
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            with patch("src.core.schemas.Answer") as mock_answer:
+                mock_instance = MagicMock()
+                mock_answer.return_value = mock_instance
 
-            result = client.generate_grounded_answer("test query", "test context")
+                result = client.generate_grounded_answer("test query", "test context")
 
-            assert result == mock_instance
+                assert result == mock_instance
 
     def test_generate_grounded_answer_json_error(self):
         """Test answer generation with JSON parsing error."""
@@ -393,11 +423,13 @@ class TestGroundedAnswerGeneration:
         mock_response.text = "invalid json"
         client.client.generate_content.return_value = mock_response
 
-        result = client.generate_grounded_answer("test query", "test context")
+        # Mock the database dependency
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            result = client.generate_grounded_answer("test query", "test context")
 
-        # Should return fallback answer
-        assert "apologize" in result.answer_summary
-        assert result.confidence_score == 0.0
+            # Should return fallback answer
+            assert "apologize" in result.answer_summary
+            assert result.confidence_score == 0.0
 
     def test_generate_grounded_answer_validation_error(self):
         """Test answer generation with validation error."""
@@ -408,15 +440,17 @@ class TestGroundedAnswerGeneration:
         mock_response.text = '{"invalid": "data"}'
         client.client.generate_content.return_value = mock_response
 
-        with patch(
-            "src.core.llm_client.LLMClient._validate_answer_response",
-            side_effect=Exception("Validation failed"),
-        ):
-            result = client.generate_grounded_answer("test query", "test context")
+        # Mock the database dependency
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            with patch(
+                "src.core.llm_client.LLMClient._validate_answer_response",
+                side_effect=Exception("Validation failed"),
+            ):
+                result = client.generate_grounded_answer("test query", "test context")
 
-            # Should return fallback answer
-            assert "apologize" in result.answer_summary
-            assert result.confidence_score == 0.0
+                # Should return fallback answer
+                assert "apologize" in result.answer_summary
+                assert result.confidence_score == 0.0
 
     def test_generate_grounded_answer_api_error(self):
         """Test answer generation with API error."""
@@ -424,11 +458,13 @@ class TestGroundedAnswerGeneration:
         client.client = MagicMock()
         client.client.generate_content.side_effect = Exception("API Error")
 
-        result = client.generate_grounded_answer("test query", "test context")
+        # Mock the database dependency
+        with patch("src.core.database.get_db", side_effect=mock_get_db()):
+            result = client.generate_grounded_answer("test query", "test context")
 
-        # Should return fallback answer
-        assert "apologize" in result.answer_summary
-        assert result.confidence_score == 0.0
+            # Should return fallback answer
+            assert "apologize" in result.answer_summary
+            assert result.confidence_score == 0.0
 
 
 class TestGlobalClient:
