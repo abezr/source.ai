@@ -326,9 +326,9 @@ class TestQueryEndpoints:
         """Test successful query that returns an answer."""
         query_data = {"query": "What is the main topic of this book?", "top_k": 5}
 
-        # Mock the LLM client and retrieval
+        # Mock the LLM router and retrieval
         with (
-            patch("src.main.get_llm_client") as mock_llm,
+            patch("src.main.get_llm_router") as mock_router,
             patch("src.main.crud.hybrid_retrieve") as mock_retrieve,
         ):
             # Mock retrieval results (need at least 2 chunks to pass retrieval gate)
@@ -339,7 +339,7 @@ class TestQueryEndpoints:
             mock_retrieve.return_value = mock_chunks
 
             # Mock LLM response
-            mock_llm_client = Mock()
+            mock_provider = Mock()
             mock_answer = Mock(spec=schemas.Answer)
             mock_answer.confidence_score = 0.9
             mock_answer.answer_summary = "This is a test answer"
@@ -352,8 +352,11 @@ class TestQueryEndpoints:
                     "confidence_score": 0.9,
                 }
             )
-            mock_llm_client.generate_grounded_answer.return_value = mock_answer
-            mock_llm.return_value = mock_llm_client
+            mock_provider.generate_grounded_answer.return_value = mock_answer
+
+            mock_router_instance = Mock()
+            mock_router_instance.get_provider_for_role.return_value = mock_provider
+            mock_router.return_value = mock_router_instance
 
             response = await async_client.post("/query", json=query_data)
 
@@ -386,7 +389,7 @@ class TestQueryEndpoints:
         # Mock retrieval and low-confidence LLM response
         with (
             patch("src.main.crud.hybrid_retrieve") as mock_retrieve,
-            patch("src.main.get_llm_client") as mock_llm,
+            patch("src.main.get_llm_router") as mock_router,
         ):
             mock_chunks = [
                 Mock(id=1, chunk_text="Test chunk 1", page_number=1),
@@ -394,11 +397,14 @@ class TestQueryEndpoints:
             ]
             mock_retrieve.return_value = mock_chunks
 
-            mock_llm_client = Mock()
+            mock_provider = Mock()
             mock_answer = Mock()
             mock_answer.confidence_score = 0.5  # Below threshold
-            mock_llm_client.generate_grounded_answer.return_value = mock_answer
-            mock_llm.return_value = mock_llm_client
+            mock_provider.generate_grounded_answer.return_value = mock_answer
+
+            mock_router_instance = Mock()
+            mock_router_instance.get_provider_for_role.return_value = mock_provider
+            mock_router.return_value = mock_router_instance
 
             response = await async_client.post("/query", json=query_data)
 
@@ -414,7 +420,7 @@ class TestQueryEndpoints:
 
         with (
             patch("src.main.crud.hybrid_retrieve") as mock_retrieve,
-            patch("src.main.get_llm_client") as mock_llm,
+            patch("src.main.get_llm_router") as mock_router,
         ):
             mock_chunks = [
                 Mock(id=1, chunk_text="Test chunk 1", page_number=1),
@@ -422,7 +428,7 @@ class TestQueryEndpoints:
             ]
             mock_retrieve.return_value = mock_chunks
 
-            mock_llm_client = Mock()
+            mock_provider = Mock()
             mock_answer = Mock(spec=schemas.Answer)
             mock_answer.confidence_score = 0.9
             mock_answer.answer_summary = "Test answer"
@@ -435,8 +441,11 @@ class TestQueryEndpoints:
                     "confidence_score": 0.9,
                 }
             )
-            mock_llm_client.generate_grounded_answer.return_value = mock_answer
-            mock_llm.return_value = mock_llm_client
+            mock_provider.generate_grounded_answer.return_value = mock_answer
+
+            mock_router_instance = Mock()
+            mock_router_instance.get_provider_for_role.return_value = mock_provider
+            mock_router.return_value = mock_router_instance
 
             response = await async_client.post("/query", json=query_data)
 
