@@ -326,7 +326,9 @@ class TestStructuredTOC:
             with patch(
                 "json.loads", side_effect=json.JSONDecodeError("Invalid JSON", "", 0)
             ):
-                with pytest.raises(Exception, match="Failed to parse LLM response as JSON"):
+                with pytest.raises(
+                    Exception, match="Failed to parse LLM response as JSON"
+                ):
                     client.get_structured_toc("test toc text")
 
     def test_get_structured_toc_api_error(self):
