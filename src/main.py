@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from typing import List
 import logging
 import os
+import time
 from contextlib import asynccontextmanager
 from arq import ArqRedis
 from arq.connections import RedisSettings
@@ -13,26 +14,26 @@ from .core.object_store import get_object_store_client
 from .core.llm_router import get_llm_router
 from .core.config_store import get_rag_config, update_rag_config
 
-# OpenTelemetry imports - temporarily disabled due to import issues
-# from opentelemetry import metrics
-# from opentelemetry.sdk.metrics import MeterProvider
-# from opentelemetry.exporter.prometheus import PrometheusMetricReader
-# from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-# from prometheus_client import generate_latest
+# OpenTelemetry imports
+from opentelemetry import metrics
+from opentelemetry.sdk.metrics import MeterProvider
+from opentelemetry.exporter.prometheus import PrometheusMetricReader
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from prometheus_client import generate_latest
 
-# Custom metrics - temporarily disabled
-# meter = metrics.get_meter("hbi_app")
-# request_count = meter.create_counter(
-#     name="hbi_requests_total", description="Total number of requests", unit="1"
-# )
-# request_duration = meter.create_histogram(
-#     name="hbi_request_duration_seconds",
-#     description="Request duration in seconds",
-#     unit="s",
-# )
-# error_count = meter.create_counter(
-#     name="hbi_errors_total", description="Total number of errors", unit="1"
-# )
+# Custom metrics
+meter = metrics.get_meter("hbi_app")
+request_count = meter.create_counter(
+    name="hbi_requests_total", description="Total number of requests", unit="1"
+)
+request_duration = meter.create_histogram(
+    name="hbi_request_duration_seconds",
+    description="Request duration in seconds",
+    unit="s",
+)
+error_count = meter.create_counter(
+    name="hbi_errors_total", description="Total number of errors", unit="1"
+)
 
 
 @asynccontextmanager
@@ -43,15 +44,15 @@ async def lifespan(app: FastAPI):
         initialize_database()
         logging.info("Database initialized successfully on startup")
 
-        # Initialize OpenTelemetry metrics - temporarily disabled
-        # prometheus_reader = PrometheusMetricReader()
-        # meter_provider = MeterProvider(metric_readers=[prometheus_reader])
-        # metrics.set_meter_provider(meter_provider)
+        # Initialize OpenTelemetry metrics
+        prometheus_reader = PrometheusMetricReader()
+        meter_provider = MeterProvider(metric_readers=[prometheus_reader])
+        metrics.set_meter_provider(meter_provider)
 
-        # Instrument FastAPI - temporarily disabled
-        # FastAPIInstrumentor.instrument_app(app)
+        # Instrument FastAPI
+        FastAPIInstrumentor.instrument_app(app)
 
-        logging.info("Application startup completed (metrics disabled)")
+        logging.info("Application startup completed with metrics enabled")
     except Exception as e:
         logging.error(f"Failed to initialize database on startup: {str(e)}")
         raise
@@ -100,12 +101,8 @@ async def health_check(background_tasks: BackgroundTasks):
 async def metrics():
     """
     Prometheus metrics endpoint for scraping application metrics.
-    Note: Metrics are currently disabled.
     """
-    return {
-        "status": "metrics_disabled",
-        "message": "Prometheus metrics are temporarily disabled",
-    }
+    return generate_latest()
 
 
 def log_health_check_request():
@@ -232,19 +229,20 @@ async def upload_book_file(
     Background processing will be handled by Redis/arq workers.
     """
     try:
-        # request_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})  # Disabled
+        start_time = time.time()
+        request_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})
 
         # Validate that the book exists
         db_book = crud.get_book(db, book_id=book_id)
         if db_book is None:
-            # error_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})  # Disabled
-            # request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "error"})  # Disabled
+            error_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})
+            request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "error"})
             raise HTTPException(status_code=404, detail="Book not found")
 
         # Validate file type (basic check)
         if not file.filename.lower().endswith(".pdf"):
-            # error_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})  # Disabled
-            # request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "error"})  # Disabled
+            error_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})
+            request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "error"})
             raise HTTPException(status_code=400, detail="Only PDF files are supported")
 
         # Get object store client
@@ -263,8 +261,8 @@ async def upload_book_file(
         # Update book's source_path in database
         updated_book = crud.update_book_source_path(db, book_id, object_name)
         if updated_book is None:
-            # error_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})  # Disabled
-            # request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "error"})  # Disabled
+            error_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})
+            request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "error"})
             raise HTTPException(status_code=500, detail="Failed to update book record")
 
         # Enqueue background processing job with arq
@@ -274,14 +272,14 @@ async def upload_book_file(
         logging.info(
             f"Enqueued background processing job for book {book_id}, file: {object_name}"
         )
-        # request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "success"})  # Disabled
+        request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "success"})
         return updated_book
 
     except HTTPException:
         raise
     except Exception as e:
-        # error_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})  # Disabled
-        # request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "error"})  # Disabled
+        error_count.add(1, {"endpoint": "/books/{book_id}/upload", "method": "POST"})
+        request_duration.record(time.time() - start_time, {"endpoint": "/books/{book_id}/upload", "status": "error"})
         raise HTTPException(status_code=500, detail=f"File upload failed: {str(e)}")
 
 
@@ -323,7 +321,8 @@ async def query_books(request: schemas.QueryRequest, db: Session = Depends(get_d
     Returns a structured answer with citations or a fallback message.
     """
     try:
-        # request_count.add(1, {"endpoint": "/query", "method": "POST"})  # Disabled
+        start_time = time.time()
+        request_count.add(1, {"endpoint": "/query", "method": "POST"})
         logging.info(
             f"Processing query: '{request.query}' (book_id: {request.book_id}, top_k: {request.top_k})"
         )
@@ -346,7 +345,7 @@ async def query_books(request: schemas.QueryRequest, db: Session = Depends(get_d
             logging.warning(
                 f"Retrieval gate failed: only {len(retrieved_chunks)} chunks found (minimum: {config.min_chunks})"
             )
-            # request_duration.record(time.time() - start_time, {"endpoint": "/query", "status": "fallback"})  # Disabled
+            request_duration.record(time.time() - start_time, {"endpoint": "/query", "status": "fallback"})
             return schemas.QueryResponse(fallback_message=fallback_msg)
 
         logging.info(f"Retrieval gate passed: {len(retrieved_chunks)} chunks retrieved")
@@ -366,23 +365,23 @@ async def query_books(request: schemas.QueryRequest, db: Session = Depends(get_d
             logging.warning(
                 f"Generation gate failed: confidence {answer.confidence_score:.2f} below threshold {config.confidence_threshold}"
             )
-            # request_duration.record(time.time() - start_time, {"endpoint": "/query", "status": "fallback"})  # Disabled
+            request_duration.record(time.time() - start_time, {"endpoint": "/query", "status": "fallback"})
             return schemas.QueryResponse(fallback_message=fallback_msg)
 
         # Step 6: Success - return structured answer
         logging.info(
             f"Generation gate passed: confidence {answer.confidence_score:.2f}, returning structured answer"
         )
-        # request_duration.record(time.time() - start_time, {"endpoint": "/query", "status": "success"})  # Disabled
+        request_duration.record(time.time() - start_time, {"endpoint": "/query", "status": "success"})
         return schemas.QueryResponse(answer=answer)
 
     except Exception as e:
-        # error_count.add(1, {"endpoint": "/query", "method": "POST"})  # Disabled
+        error_count.add(1, {"endpoint": "/query", "method": "POST"})
         error_msg = (
             "I encountered an error while processing your query. Please try again."
         )
         logging.error(f"Query processing failed: {str(e)}")
-        # request_duration.record(time.time() - start_time, {"endpoint": "/query", "status": "error"})  # Disabled
+        request_duration.record(time.time() - start_time, {"endpoint": "/query", "status": "error"})
         return schemas.QueryResponse(fallback_message=error_msg)
 
 
