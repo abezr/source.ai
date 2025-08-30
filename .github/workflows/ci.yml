@@ -18,7 +18,7 @@ on:
 
 env:
   TF_VERSION: '1.5.0'
-  TF_WORKING_DIR: './terraform'
+  TF_WORKING_DIR: 'terraform'
 
 jobs:
   build-and-test:
@@ -100,6 +100,16 @@ jobs:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
+    - name: Verify Terraform Directory
+      run: |
+        if [ ! -d "${{ env.TF_WORKING_DIR }}" ]; then
+          echo "❌ Terraform directory '${{ env.TF_WORKING_DIR }}' not found!"
+          echo "Expected terraform files in: ${{ env.TF_WORKING_DIR }}/"
+          ls -la
+          exit 1
+        fi
+        echo "✅ Terraform directory found: ${{ env.TF_WORKING_DIR }}"
+
     - name: Terraform Init
       working-directory: ${{ env.TF_WORKING_DIR }}
       run: terraform init
@@ -154,6 +164,16 @@ jobs:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
+    - name: Verify Terraform Directory
+      run: |
+        if [ ! -d "${{ env.TF_WORKING_DIR }}" ]; then
+          echo "❌ Terraform directory '${{ env.TF_WORKING_DIR }}' not found!"
+          echo "Expected terraform files in: ${{ env.TF_WORKING_DIR }}/"
+          ls -la
+          exit 1
+        fi
+        echo "✅ Terraform directory found: ${{ env.TF_WORKING_DIR }}"
+
     - name: Terraform Init
       working-directory: ${{ env.TF_WORKING_DIR }}
       run: terraform init
@@ -203,6 +223,16 @@ jobs:
       env:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    - name: Verify Terraform Directory
+      run: |
+        if [ ! -d "${{ env.TF_WORKING_DIR }}" ]; then
+          echo "❌ Terraform directory '${{ env.TF_WORKING_DIR }}' not found!"
+          echo "Expected terraform files in: ${{ env.TF_WORKING_DIR }}/"
+          ls -la
+          exit 1
+        fi
+        echo "✅ Terraform directory found: ${{ env.TF_WORKING_DIR }}"
 
     - name: Terraform Init
       working-directory: ${{ env.TF_WORKING_DIR }}
