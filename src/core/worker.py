@@ -21,6 +21,20 @@ import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 
+try:
+    from pydantic import BaseSettings
+except ImportError:
+    from pydantic_settings import BaseSettings
+
+from .database import SessionLocal
+from ..agents.parser import (
+    parse_toc_from_pdf,
+    extract_text_from_djvu,
+    parse_index_from_text,
+    identify_index_pages,
+)
+from ..core import crud
+
 # Worker metrics
 worker_meter = metrics.get_meter("hbi_worker")
 tasks_processed = worker_meter.create_counter(
@@ -73,21 +87,6 @@ def start_metrics_server(port=8000):
 # Start metrics server in a separate thread
 metrics_thread = threading.Thread(target=start_metrics_server, daemon=True)
 metrics_thread.start()
-
-try:
-    from pydantic import BaseSettings
-except ImportError:
-    from pydantic_settings import BaseSettings
-
-from .database import SessionLocal
-from ..agents.parser import (
-    parse_toc_from_pdf,
-    extract_text_from_djvu,
-    parse_index_from_text,
-    identify_index_pages,
-)
-from ..core import crud
-
 
 class WorkerSettings(BaseSettings):
     """Worker configuration settings for arq."""
