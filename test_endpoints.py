@@ -15,7 +15,7 @@ try:
     payload = {
         "query": "What is the main purpose of the Hybrid Book Index system?",
         "book_id": 1,
-        "top_k": 10
+        "top_k": 10,
     }
     response = requests.post("http://localhost:8000/query", json=payload)
     print(f"Query status: {response.status_code}")

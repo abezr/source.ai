@@ -88,6 +88,7 @@ def start_metrics_server(port=8000):
 metrics_thread = threading.Thread(target=start_metrics_server, daemon=True)
 metrics_thread.start()
 
+
 class WorkerSettings(BaseSettings):
     """Worker configuration settings for arq."""
 

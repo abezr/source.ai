@@ -102,7 +102,10 @@ async def metrics():
     Prometheus metrics endpoint for scraping application metrics.
     Note: Metrics are currently disabled.
     """
-    return {"status": "metrics_disabled", "message": "Prometheus metrics are temporarily disabled"}
+    return {
+        "status": "metrics_disabled",
+        "message": "Prometheus metrics are temporarily disabled",
+    }
 
 
 def log_health_check_request():

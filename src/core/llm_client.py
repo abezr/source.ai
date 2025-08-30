@@ -664,6 +664,7 @@ class LLMClient:
         """Lazy load router to avoid circular import."""
         if self._router is None:
             from .llm_router import LLMRouter
+
             self._router = LLMRouter()
         return self._router
 
