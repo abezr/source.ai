@@ -111,7 +111,6 @@ jobs:
         echo "✅ Terraform directory found: ${{ env.TF_WORKING_DIR }}"
 
     - name: Bootstrap Terraform Backend
-      working-directory: ${{ env.TF_WORKING_DIR }}
       run: |
         echo "🚀 Bootstrapping Terraform backend resources..."
         # Create temporary directory for bootstrap only
@@ -191,7 +190,6 @@ jobs:
         echo "✅ Terraform directory found: ${{ env.TF_WORKING_DIR }}"
 
     - name: Bootstrap Terraform Backend
-      working-directory: ${{ env.TF_WORKING_DIR }}
       run: |
         echo "🚀 Bootstrapping Terraform backend resources..."
         # Create temporary directory for bootstrap only
@@ -267,7 +265,6 @@ jobs:
         echo "✅ Terraform directory found: ${{ env.TF_WORKING_DIR }}"
 
     - name: Bootstrap Terraform Backend
-      working-directory: ${{ env.TF_WORKING_DIR }}
       run: |
         echo "🚀 Bootstrapping Terraform backend resources..."
         # Create temporary directory for bootstrap only
