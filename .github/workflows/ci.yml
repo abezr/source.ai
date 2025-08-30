@@ -110,6 +110,16 @@ jobs:
         fi
         echo "✅ Terraform directory found: ${{ env.TF_WORKING_DIR }}"
 
+    - name: Bootstrap Terraform Backend
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      run: |
+        echo "🚀 Bootstrapping Terraform backend resources..."
+        # Initialize with local backend for bootstrap
+        terraform init -backend=false
+        # Apply bootstrap configuration to create S3 bucket and DynamoDB table
+        terraform apply -target=aws_s3_bucket.terraform_state -target=aws_s3_bucket_versioning.terraform_state -target=aws_s3_bucket_server_side_encryption_configuration.terraform_state -target=aws_dynamodb_table.terraform_locks -auto-approve
+        echo "✅ Backend resources created successfully"
+
     - name: Terraform Init
       working-directory: ${{ env.TF_WORKING_DIR }}
       run: terraform init
@@ -174,6 +184,16 @@ jobs:
         fi
         echo "✅ Terraform directory found: ${{ env.TF_WORKING_DIR }}"
 
+    - name: Bootstrap Terraform Backend
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      run: |
+        echo "🚀 Bootstrapping Terraform backend resources..."
+        # Initialize with local backend for bootstrap
+        terraform init -backend=false
+        # Apply bootstrap configuration to create S3 bucket and DynamoDB table
+        terraform apply -target=aws_s3_bucket.terraform_state -target=aws_s3_bucket_versioning.terraform_state -target=aws_s3_bucket_server_side_encryption_configuration.terraform_state -target=aws_dynamodb_table.terraform_locks -auto-approve
+        echo "✅ Backend resources created successfully"
+
     - name: Terraform Init
       working-directory: ${{ env.TF_WORKING_DIR }}
       run: terraform init
@@ -233,6 +253,16 @@ jobs:
           exit 1
         fi
         echo "✅ Terraform directory found: ${{ env.TF_WORKING_DIR }}"
+
+    - name: Bootstrap Terraform Backend
+      working-directory: ${{ env.TF_WORKING_DIR }}
+      run: |
+        echo "🚀 Bootstrapping Terraform backend resources..."
+        # Initialize with local backend for bootstrap
+        terraform init -backend=false
+        # Apply bootstrap configuration to create S3 bucket and DynamoDB table
+        terraform apply -target=aws_s3_bucket.terraform_state -target=aws_s3_bucket_versioning.terraform_state -target=aws_s3_bucket_server_side_encryption_configuration.terraform_state -target=aws_dynamodb_table.terraform_locks -auto-approve
+        echo "✅ Backend resources created successfully"
 
     - name: Terraform Init
       working-directory: ${{ env.TF_WORKING_DIR }}
