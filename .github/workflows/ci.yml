@@ -117,13 +117,32 @@ jobs:
         mkdir -p bootstrap_temp
         cp bootstrap.tf bootstrap_temp/
         cd bootstrap_temp
-        # Initialize and apply bootstrap configuration
+        # Initialize bootstrap configuration
         terraform init
-        terraform apply -auto-approve
+        # Try to apply bootstrap configuration, but handle existing resources gracefully
+        if terraform apply -auto-approve; then
+          echo "✅ Backend resources created successfully"
+        else
+          echo "⚠️  Backend resources may already exist, checking..."
+          # Check if S3 bucket exists
+          if aws s3 ls s3://hbi-terraform-state --region us-east-1 >/dev/null 2>&1; then
+            echo "✅ S3 bucket 'hbi-terraform-state' exists"
+          else
+            echo "❌ S3 bucket 'hbi-terraform-state' does not exist"
+            exit 1
+          fi
+          # Check if DynamoDB table exists
+          if aws dynamodb describe-table --table-name hbi-terraform-locks --region us-east-1 >/dev/null 2>&1; then
+            echo "✅ DynamoDB table 'hbi-terraform-locks' exists"
+          else
+            echo "❌ DynamoDB table 'hbi-terraform-locks' does not exist"
+            exit 1
+          fi
+          echo "✅ All backend resources are available"
+        fi
         cd ..
         # Clean up temporary directory
         rm -rf bootstrap_temp
-        echo "✅ Backend resources created successfully"
 
     - name: Terraform Init
       working-directory: ${{ env.TF_WORKING_DIR }}
@@ -196,13 +215,32 @@ jobs:
         mkdir -p bootstrap_temp
         cp bootstrap.tf bootstrap_temp/
         cd bootstrap_temp
-        # Initialize and apply bootstrap configuration
+        # Initialize bootstrap configuration
         terraform init
-        terraform apply -auto-approve
+        # Try to apply bootstrap configuration, but handle existing resources gracefully
+        if terraform apply -auto-approve; then
+          echo "✅ Backend resources created successfully"
+        else
+          echo "⚠️  Backend resources may already exist, checking..."
+          # Check if S3 bucket exists
+          if aws s3 ls s3://hbi-terraform-state --region us-east-1 >/dev/null 2>&1; then
+            echo "✅ S3 bucket 'hbi-terraform-state' exists"
+          else
+            echo "❌ S3 bucket 'hbi-terraform-state' does not exist"
+            exit 1
+          fi
+          # Check if DynamoDB table exists
+          if aws dynamodb describe-table --table-name hbi-terraform-locks --region us-east-1 >/dev/null 2>&1; then
+            echo "✅ DynamoDB table 'hbi-terraform-locks' exists"
+          else
+            echo "❌ DynamoDB table 'hbi-terraform-locks' does not exist"
+            exit 1
+          fi
+          echo "✅ All backend resources are available"
+        fi
         cd ..
         # Clean up temporary directory
         rm -rf bootstrap_temp
-        echo "✅ Backend resources created successfully"
 
     - name: Terraform Init
       working-directory: ${{ env.TF_WORKING_DIR }}
@@ -271,13 +309,32 @@ jobs:
         mkdir -p bootstrap_temp
         cp bootstrap.tf bootstrap_temp/
         cd bootstrap_temp
-        # Initialize and apply bootstrap configuration
+        # Initialize bootstrap configuration
         terraform init
-        terraform apply -auto-approve
+        # Try to apply bootstrap configuration, but handle existing resources gracefully
+        if terraform apply -auto-approve; then
+          echo "✅ Backend resources created successfully"
+        else
+          echo "⚠️  Backend resources may already exist, checking..."
+          # Check if S3 bucket exists
+          if aws s3 ls s3://hbi-terraform-state --region us-east-1 >/dev/null 2>&1; then
+            echo "✅ S3 bucket 'hbi-terraform-state' exists"
+          else
+            echo "❌ S3 bucket 'hbi-terraform-state' does not exist"
+            exit 1
+          fi
+          # Check if DynamoDB table exists
+          if aws dynamodb describe-table --table-name hbi-terraform-locks --region us-east-1 >/dev/null 2>&1; then
+            echo "✅ DynamoDB table 'hbi-terraform-locks' exists"
+          else
+            echo "❌ DynamoDB table 'hbi-terraform-locks' does not exist"
+            exit 1
+          fi
+          echo "✅ All backend resources are available"
+        fi
         cd ..
         # Clean up temporary directory
         rm -rf bootstrap_temp
-        echo "✅ Backend resources created successfully"
 
     - name: Terraform Init
       working-directory: ${{ env.TF_WORKING_DIR }}
